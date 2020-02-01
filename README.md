@@ -1,16 +1,30 @@
 ZLFO
 ====
 
-A fully featured LFO for CV-based automation.
+ZLFO is a fully featured LFO for CV-based automation.
+
+It comes as an LV2 plugin bundle with a custom UI.
+
+ZLFO is written in C and uses the pugl-based
+ZToolkit for its UI.
+
+This is a work in progress.
+
+Building
+--------
+
+    meson build
+    ninja -C build
+    ninja -C build install
 
 License
 -------
-Zplugins is free software: you can redistribute it and/or modify
+ZLFO is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-Zplugins is distributed in the hope that it will be useful,
+ZLFO is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
@@ -18,7 +32,7 @@ GNU Affero General Public License for more details.
 The full text of the license can be found in the
 [COPYING](COPYING) file.
 
-For the copyright years, Zplugins uses a range (“2008-2010”) instead of
+For the copyright years, ZLFO uses a range (“2008-2010”) instead of
 listing individual years (“2008, 2009, 2010”) if and only if every year
 in the range, inclusive, is a “copyrightable” year that would be listed
 individually.
