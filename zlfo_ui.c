@@ -1,22 +1,24 @@
 /*
- * Copyright (C) 2019 Alexandros Theodotou <alex at zrythm dot org>
+ * Copyright (C) 2019-2020 Alexandros Theodotou <alex at zrythm dot org>
  *
- * This file is part of ZPlugins
+ * This file is part of ZLFO
  *
- * ZPlugins is free software: you can redistribute it and/or modify
+ * ZLFO is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
  *
- * ZPlugins is distributed in the hope that it will be useful,
+ * ZLFO is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU General Affero Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-/*
+ * along with ZLFO.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * This file incorporates work covered by the following copyright and
+ * permission notice:
+ *
   Copyright 2012-2019 David Robillard <http://drobilla.net>
 
   Permission to use, copy, modify, and/or distribute this software for any
@@ -39,25 +41,24 @@
 #include <stdlib.h>
 
 #include "zlfo_common.h"
-#include "ztoolkit/ztk.h"
+#include "zlfo_ui_theme.h"
 
 #include <cairo.h>
-#include <pugl/pugl.h>
-#include <pugl/pugl_cairo.h>
 
-#include "lv2/atom/atom.h"
-#include "lv2/atom/forge.h"
-#include "lv2/atom/util.h"
-#include "lv2/log/log.h"
-#include "lv2/patch/patch.h"
-#include "lv2/urid/urid.h"
-#include "lv2/ui/ui.h"
+#include <lv2/atom/atom.h>
+#include <lv2/atom/forge.h>
+#include <lv2/atom/util.h>
+#include <lv2/log/log.h>
+#include <lv2/patch/patch.h>
+#include <lv2/urid/urid.h>
+#include <lv2/ui/ui.h>
+#include <ztoolkit/ztk.h>
 
 #define TITLE "ZLFO"
 
 /** Width and height of the window. */
-#define WIDTH 320
-#define HEIGHT 120
+#define WIDTH 480
+#define HEIGHT 260
 
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
@@ -87,7 +88,7 @@ typedef struct ZLfoUi
 
   /**
    * This is the window passed in the features from
-	 * the host.
+   * the host.
    *
    * The pugl window will be wrapped in here.
    */
@@ -106,6 +107,8 @@ typedef struct ZLfoUi
      _self->controller, (uint32_t) idx, \
      sizeof (float), 0, &val)
 
+/* FIXME uncomment */
+#if 0
 static void
 set_freq (
   void *   obj,
@@ -123,67 +126,67 @@ get_freq (
   ZLfoUi * self = (ZLfoUi *) obj;
   return self->freq;
 }
+#endif
+
+static void
+bg_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  /* clear background to black first */
+  cairo_set_source_rgba (cr, 0, 0, 0, 1);
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+
+  /* set theme background */
+  zlfo_ui_theme_set_cr_color (cr, bg);
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+
+  /* draw test svg */
+  ZtkRect rect = {
+    0, 0, 16, 16 };
+  ztk_rsvg_draw (
+    zlfo_ui_theme.sine_svg, cr, &rect);
+}
+
+static void
+add_bg_widget (
+  ZLfoUi * self)
+{
+  ZtkRect rect = {
+    0, 0, self->app->width, self->app->height };
+  ZtkDrawingArea * da =
+    ztk_drawing_area_new (
+      &rect, NULL,
+      (ZtkWidgetDrawCallback) bg_draw_cb,
+      NULL, self);
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) da, 0);
+}
 
 static void
 create_ui (
   ZLfoUi * self)
 {
-	PuglWorld * world = puglNewWorld ();
-
   /* resize the host's window. */
   self->resize->ui_resize (
     self->resize->handle, WIDTH, HEIGHT);
 
   self->app = ztk_app_new (
-    world, TITLE,
-    (PuglNativeWindow) self->parent_window,
+    TITLE, self->parent_window,
     WIDTH, HEIGHT);
 
-  int num_controls = 1;
+  /* init the theme */
+  zlfo_ui_theme_init ();
 
-#define PADDING 10.0
-#define BOX_DIM 32.0
-
-  /* get available space for each ctrl */
-  double available_space_for_ctrl =
-    WIDTH / num_controls;
-
-  /* add each ctrl */
-  for (int i = 0; i < num_controls; i++)
-    {
-      /* add frequency knob */
-      PuglRect rect = {
-        (i * available_space_for_ctrl +
-          available_space_for_ctrl / 2.0) -
-          BOX_DIM / 2.0,
-        HEIGHT / 2 - 30 / 2,
-        BOX_DIM,
-        BOX_DIM };
-      ZtkKnob * knob =
-        ztk_knob_new (
-          &rect, get_freq, set_freq, self,
-          0.f, 20.f, 0.f);
-      ZtkWidget * w =
-        (ZtkWidget *) knob;
-      ztk_app_add_widget (
-        self->app, w, 2);
-
-      /* add label */
-      char name[500];
-      sprintf (name, "Frequency");
-      ZtkLabel * lbl =
-        ztk_label_new  (
-          24.0, 24.0, 14,
-          &self->app->theme.bright_orange,
-          name);
-
-      ZtkKnobWithLabel * knob_with_label =
-        ztk_knob_with_label_new (
-          &rect, knob, lbl);
-      w = (ZtkWidget *) knob_with_label;
-      ztk_app_add_widget (
-        self->app, w, 2);
-    }
+  /** add each control */
+  add_bg_widget (self);
 }
 
 static LV2UI_Handle
@@ -230,9 +233,9 @@ instantiate (
 
   if (!self->map)
     {
-			log_error (
-				self->log, &self->uris,
-				"Missing feature urid:map");
+      log_error (
+        self->log, &self->uris,
+        "Missing feature urid:map");
     }
 
   /* map uris */
@@ -308,16 +311,16 @@ port_event (
         }
       else
         {
-					log_error (
-						self->log, &self->uris,
-						"Unknown message type");
+          log_error (
+            self->log, &self->uris,
+            "Unknown message type");
         }
     }
   else
     {
-			log_error (
-				self->log, &self->uris,
-				"Unknown format");
+      log_error (
+        self->log, &self->uris,
+        "Unknown format");
     }
 }
 
@@ -342,7 +345,10 @@ port_event (
   /*return 0;*/
 /*}*/
 
-/* Idle interface for optional non-embedded UI. */
+/**
+ * LV2 idle interface for optional non-embedded
+ * UI.
+ */
 static int
 ui_idle (LV2UI_Handle handle)
 {
@@ -353,7 +359,9 @@ ui_idle (LV2UI_Handle handle)
   return 0;
 }
 
-// LV2 resize interface to host
+/**
+ * LV2 resize interface for the host.
+ */
 static int
 ui_resize (
   LV2UI_Feature_Handle handle, int w, int h)
@@ -364,7 +372,10 @@ ui_resize (
   return 0;
 }
 
-// connect idle and resize functions to host
+/**
+ * Called by the host to get the idle and resize
+ * functions.
+ */
 static const void*
 extension_data (const char* uri)
 {

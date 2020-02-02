@@ -65,6 +65,8 @@ zlfo_cdata_quoted.set_quoted (
 zlfo_cdata_quoted.set_quoted (
   'LFO_UI_URI',
   zlfo_cdata.get ('LFO_UI_URI'))
+zlfo_cdata_quoted.set_quoted (
+  'INSTALL_PATH', zlfodir)
 
 # create config.h
 zlfo_config_h = configure_file (
@@ -80,7 +82,8 @@ zlfo_deps = [
   ]
 ztoolkit_dep = dependency(
   'ztoolkit', version: '>= 0.1',
-  fallback: ['ztoolkit', 'ztoolkit_dep'],)
+  fallback: ['ztoolkit', 'ztoolkit_dep'],
+  default_options: ['enable_rsvg=true'])
 
 # cflags
 common_cflags = cc.get_supported_arguments([
@@ -177,7 +180,11 @@ zlfo_ui_lib = shared_library (
   sources: [
     'zlfo_ui.c',
     ],
-  dependencies: [ zlfo_deps, ztoolkit_dep, ],
+  dependencies: [
+    zlfo_deps,
+    ztoolkit_dep,
+    dependency('glib-2.0'),
+    ],
   include_directories: '.',
   install: true,
   install_dir: zlfodir,
@@ -202,3 +209,7 @@ install_data (
   zlfo_ttl,
   install_dir: zlfodir,
   )
+
+# install resources
+install_subdir (
+  'resources', install_dir: zlfodir)

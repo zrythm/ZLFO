@@ -13,7 +13,7 @@ This is a work in progress.
 Building
 --------
 
-    meson build
+    meson build -Denable_rsvg=true
     ninja -C build
     ninja -C build install
 
