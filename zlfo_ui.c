@@ -98,6 +98,8 @@ typedef enum BotButton
 typedef enum GridButton
 {
   GRID_BTN_SNAP,
+  GRID_BTN_HMIRROR,
+  GRID_BTN_VMIRROR,
   NUM_GRID_BUTTONS,
 } GridButton;
 
@@ -172,15 +174,6 @@ typedef struct DrawData
 
 /* FIXME uncomment */
 #if 0
-static void
-set_freq (
-  void *   obj,
-  float    val)
-{
-  ZLfoUi * self = (ZLfoUi *) obj;
-  self->freq = val;
-  SEND_PORT_EVENT (self, LFO_FREQ, self->freq);
-}
 
 static float
 get_freq (
@@ -434,12 +427,12 @@ bot_btn_draw_cb (
     is_normal ?
       /* show border if normal */
       widget->rect.y :
-      widget->rect.y - 4,
+      widget->rect.y - 3,
     widget->rect.width,
     is_normal ?
       /* show border if normal */
       widget->rect.height :
-      widget->rect.height + 4);
+      widget->rect.height + 3);
   cairo_fill (cr);
 
 
@@ -711,11 +704,128 @@ grid_btn_draw_cb (
   switch (data->val)
     {
       DRAW_SVG (SNAP, grid_snap);
+      DRAW_SVG (HMIRROR, hmirror);
+      DRAW_SVG (VMIRROR, vmirror);
     default:
       break;
     }
 
 #undef DRAW_SVG
+}
+
+static float
+shift_control_getter (
+  ZtkControl * control,
+  ZLfoUi *     self)
+{
+  return self->phase;
+}
+
+static void
+shift_control_setter (
+  ZtkControl * control,
+  ZLfoUi *     self,
+  float        val)
+{
+  self->phase = val;
+  SEND_PORT_EVENT (self, LFO_PHASE, self->phase);
+}
+
+/**
+ * Macro to get real value.
+ */
+#define GET_REAL_VAL \
+  ((*ctrl->getter) (ctrl, ctrl->object))
+
+/**
+ * MAcro to get real value from knob value.
+ */
+#define REAL_VAL_FROM_KNOB(knob) \
+  (ctrl->min + (float) knob * \
+   (ctrl->max - ctrl->min))
+
+/**
+ * Converts from real value to knob value
+ */
+#define KNOB_VAL_FROM_REAL(real) \
+  (((float) real - ctrl->min) / \
+   (ctrl->max - ctrl->min))
+
+/**
+ * Sets real val
+ */
+#define SET_REAL_VAL(real) \
+   ((*ctrl->setter)(ctrl->object, (float) real))
+
+static void
+shift_control_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  ZtkControl * ctrl = (ZtkControl *) widget;
+
+  /* draw bg */
+  zlfo_ui_theme_set_cr_color (cr, button_normal);
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+
+  /* draw black bg */
+  const int bg_padding = 2;
+  zlfo_ui_theme_set_cr_color (cr, bg);
+  cairo_rectangle (
+    cr, widget->rect.x + bg_padding,
+    widget->rect.y + bg_padding,
+    widget->rect.width - bg_padding * 2,
+    widget->rect.height - bg_padding * 2);
+  cairo_fill (cr);
+
+  /* set color */
+  if (widget->state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      cairo_set_source_rgba (cr, 0.9, 0.9, 0.9, 1);
+    }
+  else if (widget->state & ZTK_WIDGET_STATE_HOVERED)
+    {
+      cairo_set_source_rgba (cr, 0.8, 0.8, 0.8, 1);
+    }
+  else
+    {
+      cairo_set_source_rgba (cr, 0.7, 0.7, 0.7, 1);
+    }
+
+  /* the half width of the available bar area */
+  double half_width =
+    (widget->rect.width  - bg_padding * 2.0) / 2.0;
+
+  /* draw bar */
+  double real_val = (double) GET_REAL_VAL;
+  if (real_val < 0.5)
+    {
+      double work_val = real_val / 0.5;
+      cairo_rectangle (
+        cr,
+        widget->rect.x + bg_padding +
+          work_val * half_width,
+        widget->rect.y + bg_padding,
+        half_width - work_val * half_width,
+        widget->rect.height - bg_padding * 2);
+    }
+  else
+    {
+      double work_val = (real_val - 0.5) / 0.5;
+      cairo_rectangle (
+        cr,
+        widget->rect.x + bg_padding +
+          half_width + work_val * half_width,
+        widget->rect.y + bg_padding,
+        half_width -
+          (half_width + work_val * half_width),
+        widget->rect.height - bg_padding * 2);
+    }
+  cairo_fill (cr);
 }
 
 static void
@@ -750,6 +860,56 @@ grid_lbl_draw_cb (
 #undef DRAW_SVG
 }
 
+typedef struct TestStruct
+{
+  int id;
+  char label[600];
+  ZtkComboBox * combo;
+} TestStruct;
+
+static void
+activate_cb (
+  ZtkWidget *  widget,
+  TestStruct * test)
+{
+  ztk_message (
+    "activate %p %d %s", test->combo,
+    test->id, test->label);
+}
+
+static void
+button_event_cb (
+  ZtkWidget * widget,
+  const PuglEventButton * btn,
+  ZLfoUi * self)
+{
+  if ((((PuglEvent *) btn)->type !=
+         PUGL_BUTTON_RELEASE) ||
+      (!ztk_widget_is_hit (widget, btn->x, btn->y)))
+    return;
+
+  ZtkComboBox * combo =
+    ztk_combo_box_new (
+      widget, 0, 0);
+  ztk_app_add_widget (
+    widget->app, (ZtkWidget *) combo, 100);
+
+  for (int i = 0; i < 90; i++)
+    {
+      TestStruct * test =
+        calloc (1, sizeof (TestStruct));
+      test->id = i;
+      test->combo = combo;
+      sprintf (test->label, "Test %d", i);
+      ztk_combo_box_add_text_element (
+        combo, test->label,
+        (ZtkWidgetActivateCallback) activate_cb,
+        test);
+      if (i % 3 == 0)
+        ztk_combo_box_add_separator (combo);
+    }
+}
+
 static void
 add_grid_controls (
   ZLfoUi * self)
@@ -760,10 +920,31 @@ add_grid_controls (
   int start = LEFT_BTN_WIDTH + padding + 12;
   for (int i = 0; i < NUM_GRID_BUTTONS; i++)
     {
-      ZtkRect rect = {
-        start + padding + i * (width + padding),
-        TOP_BTN_HEIGHT + 12,
-        width, height };
+      ZtkRect rect;
+      switch (i)
+        {
+        case GRID_BTN_SNAP:
+          rect.x =
+            start + padding;
+          rect.width = 76;
+          break;
+        case GRID_BTN_HMIRROR:
+          rect.x =
+            start + padding + width + padding +
+            68;
+          rect.width = 40;
+          break;
+        case GRID_BTN_VMIRROR:
+          rect.x =
+            start + padding + width + padding +
+            110;
+          rect.width = 40;
+          break;
+        default:
+          break;
+        }
+      rect.height = 22;
+      rect.y = TOP_BTN_HEIGHT + 12;
       DrawData * data =
         calloc (1, sizeof (DrawData));
       data->val = i;
@@ -776,7 +957,27 @@ add_grid_controls (
           NULL, data);
       ztk_app_add_widget (
         self->app, (ZtkWidget *) da, 1);
+
+      ((ZtkWidget *) da)->button_event_cb =
+        (ZtkWidgetButtonEventCallback)
+        button_event_cb;
     }
+
+  /* add shift control */
+  ZtkRect rect = {
+    start + padding + width + padding + 210,
+    TOP_BTN_HEIGHT + 12, 76, 22 };
+  ZtkControl * control =
+    ztk_control_new (
+      &rect,
+      (ZtkControlGetter) shift_control_getter,
+      (ZtkControlSetter) shift_control_setter,
+      (ZtkWidgetDrawCallback) shift_control_draw_cb,
+      ZTK_CTRL_DRAG_HORIZONTAL,
+      self, 0.f, 1.f, 0.5f);
+  control->sensitivity = 0.02f;
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) control, 1);
 
   /* add labels */
   padding = 2;
@@ -785,15 +986,13 @@ add_grid_controls (
   start = LEFT_BTN_WIDTH + padding;
   for (int i = 0; i < NUM_LBL_TYPES; i++)
     {
-      ZtkRect rect;
-
       if (i == LBL_TYPE_INVERT)
         {
-          rect.x = 156;
+          rect.x = 138;
         }
       else if (i == LBL_TYPE_SHIFT)
         {
-          rect.x = 300;
+          rect.x = 282;
         }
       rect.y = TOP_BTN_HEIGHT + 12;
       rect.width = width;
@@ -940,6 +1139,9 @@ port_event (
         {
         case LFO_FREQ:
           self->freq = * (const float *) buffer;
+          break;
+        case LFO_PHASE:
+          self->phase = * (const float *) buffer;
           break;
         default:
           break;

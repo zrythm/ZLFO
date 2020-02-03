@@ -79,6 +79,12 @@ typedef struct ZLfoUiTheme
   ZtkRsvgHandle * grid_snap_svg;
   ZtkRsvgHandle * grid_snap_hover_svg;
   ZtkRsvgHandle * grid_snap_click_svg;
+  ZtkRsvgHandle * hmirror_svg;
+  ZtkRsvgHandle * hmirror_hover_svg;
+  ZtkRsvgHandle * hmirror_click_svg;
+  ZtkRsvgHandle * vmirror_svg;
+  ZtkRsvgHandle * vmirror_hover_svg;
+  ZtkRsvgHandle * vmirror_click_svg;
   ZtkRsvgHandle * invert_svg;
   ZtkRsvgHandle * shift_svg;
 
@@ -139,6 +145,12 @@ zlfo_ui_theme_init (void)
   LOAD_SVG (grid_snap);
   LOAD_SVG (grid_snap_hover);
   LOAD_SVG (grid_snap_click);
+  LOAD_SVG (hmirror);
+  LOAD_SVG (hmirror_hover);
+  LOAD_SVG (hmirror_click);
+  LOAD_SVG (vmirror);
+  LOAD_SVG (vmirror_hover);
+  LOAD_SVG (vmirror_click);
   LOAD_SVG (invert);
   LOAD_SVG (shift);
 }
