@@ -49,6 +49,12 @@ typedef struct ZLfoUiTheme
   /** Line/curve color. */
   ZtkColor line;
 
+  /** Grid line color. */
+  ZtkColor grid;
+
+  /** Grid strong line color. */
+  ZtkColor grid_strong;
+
   ZtkRsvgHandle * sine_svg;
   ZtkRsvgHandle * saw_svg;
   ZtkRsvgHandle * triangle_svg;
@@ -56,6 +62,8 @@ typedef struct ZLfoUiTheme
   ZtkRsvgHandle * rnd_svg;
   ZtkRsvgHandle * curve_svg;
   ZtkRsvgHandle * step_svg;
+  ZtkRsvgHandle * curve_active_svg;
+  ZtkRsvgHandle * step_active_svg;
 
   ZtkRsvgHandle * range_svg;
 
@@ -67,6 +75,12 @@ typedef struct ZLfoUiTheme
   ZtkRsvgHandle * zrythm_svg;
   ZtkRsvgHandle * zrythm_hover_svg;
   ZtkRsvgHandle * zrythm_orange_svg;
+
+  ZtkRsvgHandle * grid_snap_svg;
+  ZtkRsvgHandle * grid_snap_hover_svg;
+  ZtkRsvgHandle * grid_snap_click_svg;
+  ZtkRsvgHandle * invert_svg;
+  ZtkRsvgHandle * shift_svg;
 
 } ZLfoUiTheme;
 
@@ -87,6 +101,8 @@ zlfo_ui_theme_init (void)
   SET_COLOR (left_button_click, "#FF6501");
   SET_COLOR (line, "#0D5562");
   SET_COLOR (selected_bg, "#1BAEC9");
+  SET_COLOR (grid_strong, "#86ECFE");
+  SET_COLOR (grid, "#23D9FB");
 
   char * abs_path;
 #define LOAD_SVG(name) \
@@ -110,6 +126,8 @@ zlfo_ui_theme_init (void)
   LOAD_SVG (rnd);
   LOAD_SVG (curve);
   LOAD_SVG (step);
+  LOAD_SVG (curve_active);
+  LOAD_SVG (step_active);
   LOAD_SVG (range);
   LOAD_SVG (sync);
   LOAD_SVG (freeb);
@@ -118,6 +136,11 @@ zlfo_ui_theme_init (void)
   LOAD_SVG (zrythm);
   LOAD_SVG (zrythm_hover);
   LOAD_SVG (zrythm_orange);
+  LOAD_SVG (grid_snap);
+  LOAD_SVG (grid_snap_hover);
+  LOAD_SVG (grid_snap_click);
+  LOAD_SVG (invert);
+  LOAD_SVG (shift);
 }
 
 /**

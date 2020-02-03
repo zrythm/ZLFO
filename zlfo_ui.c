@@ -95,12 +95,27 @@ typedef enum BotButton
   NUM_BOT_BUTTONS,
 } BotButton;
 
-typedef enum ButtonPosition
+typedef enum GridButton
 {
-  BTN_POS_TOP,
-  BTN_POS_LEFT,
-  BTN_POS_BOT,
-} ButtonPosition;
+  GRID_BTN_SNAP,
+  NUM_GRID_BUTTONS,
+} GridButton;
+
+typedef enum LabelType
+{
+  LBL_TYPE_INVERT,
+  LBL_TYPE_SHIFT,
+  NUM_LBL_TYPES,
+} LabelType;
+
+typedef enum DrawDataType
+{
+  DATA_TYPE_BTN_TOP,
+  DATA_TYPE_BTN_LEFT,
+  DATA_TYPE_BTN_BOT,
+  DATA_TYPE_BTN_GRID,
+  DATA_TYPE_LBL,
+} DrawDataType;
 
 typedef struct ZLfoUi
 {
@@ -142,12 +157,13 @@ typedef struct ZLfoUi
 /**
  * Data to be passed around in the callbacks.
  */
-typedef struct ButtonEventData
+typedef struct DrawData
 {
-  int            btn;
-  ButtonPosition pos;
+  /** Enum value corresponding to the type. */
+  int            val;
+  DrawDataType   type;
   ZLfoUi *       zlfo_ui;
-} ButtonEventData;
+} DrawData;
 
 #define SEND_PORT_EVENT(_self,idx,val) \
   _self->write ( \
@@ -215,7 +231,7 @@ static void
 left_btn_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
-  ButtonEventData * data)
+  DrawData * data)
 {
   /* set background */
   ZtkWidgetState state = widget->state;
@@ -253,7 +269,7 @@ left_btn_draw_cb (
 
   const int hpadding = 8;
   const int vpadding = 4;
-  switch (data->btn)
+  switch (data->val)
     {
       DRAW_SVG (SINE, sine);
       DRAW_SVG (TRIANGLE, triangle);
@@ -279,10 +295,10 @@ add_left_buttons (
       ZtkRect rect = {
         padding, padding + i * (height + padding),
         width, height };
-      ButtonEventData * data =
-        calloc (1, sizeof (ButtonEventData));
-      data->btn = i;
-      data->pos = BTN_POS_LEFT;
+      DrawData * data =
+        calloc (1, sizeof (DrawData));
+      data->val = i;
+      data->type = DATA_TYPE_BTN_LEFT;
       data->zlfo_ui = self;
       ZtkDrawingArea * da =
         ztk_drawing_area_new (
@@ -298,14 +314,16 @@ static void
 top_btn_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
-  ButtonEventData * data)
+  DrawData * data)
 {
   /* set background */
   ZtkWidgetState state = widget->state;
   int is_normal = 0;
+  int clicked = 0;
   if (state & ZTK_WIDGET_STATE_PRESSED)
     {
       zlfo_ui_theme_set_cr_color (cr, selected_bg);
+      clicked = 1;
     }
   else if (state & ZTK_WIDGET_STATE_HOVERED)
     {
@@ -313,7 +331,8 @@ top_btn_draw_cb (
     }
   else
     {
-      zlfo_ui_theme_set_cr_color (cr, button_normal);
+      zlfo_ui_theme_set_cr_color (
+        cr, button_normal);
       is_normal = 1;
     }
 
@@ -337,13 +356,16 @@ top_btn_draw_cb (
         widget->rect.width - hpadding * 2, \
         widget->rect.height - vpadding * 2 }; \
       ztk_rsvg_draw ( \
-        zlfo_ui_theme.lowercase##_svg, cr, &rect); \
+        clicked ? \
+          zlfo_ui_theme.lowercase##_active_svg : \
+          zlfo_ui_theme.lowercase##_svg, \
+          cr, &rect); \
     } \
     break
 
   const int hpadding = 6;
   const int vpadding = 6;
-  switch (data->btn)
+  switch (data->val)
     {
       DRAW_SVG (CURVE, curve);
       DRAW_SVG (STEP, step);
@@ -367,10 +389,10 @@ add_top_buttons (
       ZtkRect rect = {
         start + padding + i * (width + padding),
         padding, width, height };
-      ButtonEventData * data =
-        calloc (1, sizeof (ButtonEventData));
-      data->btn = i;
-      data->pos = BTN_POS_TOP;
+      DrawData * data =
+        calloc (1, sizeof (DrawData));
+      data->val = i;
+      data->type = DATA_TYPE_BTN_TOP;
       data->zlfo_ui = self;
       ZtkDrawingArea * da =
         ztk_drawing_area_new (
@@ -386,14 +408,16 @@ static void
 bot_btn_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
-  ButtonEventData * data)
+  DrawData * data)
 {
   /* set background */
   ZtkWidgetState state = widget->state;
   int is_normal = 0;
+  int clicked = 0;
   if (state & ZTK_WIDGET_STATE_PRESSED)
     {
       zlfo_ui_theme_set_cr_color (cr, selected_bg);
+      clicked = 1;
     }
   else if (state & ZTK_WIDGET_STATE_HOVERED)
     {
@@ -429,16 +453,16 @@ bot_btn_draw_cb (
         widget->rect.width - hpadding * 2, \
         widget->rect.height - vpadding * 2 }; \
       ztk_rsvg_draw ( \
-        is_normal ? \
-          zlfo_ui_theme.lowercase##_svg : \
-          zlfo_ui_theme.lowercase##_black_svg, \
+        clicked ? \
+          zlfo_ui_theme.lowercase##_black_svg : \
+          zlfo_ui_theme.lowercase##_svg, \
           cr, &rect); \
     } \
     break
 
   const int hpadding = 6;
   const int vpadding = 0;
-  switch (data->btn)
+  switch (data->val)
     {
       DRAW_SVG (SYNC, sync);
       DRAW_SVG (FREE, freeb);
@@ -463,10 +487,10 @@ add_bot_buttons (
         start + padding + i * (width + padding),
         TOP_BTN_HEIGHT + 4 + MID_REGION_HEIGHT,
         width, height };
-      ButtonEventData * data =
-        calloc (1, sizeof (ButtonEventData));
-      data->btn = i;
-      data->pos = BTN_POS_BOT;
+      DrawData * data =
+        calloc (1, sizeof (DrawData));
+      data->val = i;
+      data->type = DATA_TYPE_BTN_BOT;
       data->zlfo_ui = self;
       ZtkDrawingArea * da =
         ztk_drawing_area_new (
@@ -490,6 +514,43 @@ mid_region_bg_draw_cb (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
   cairo_fill (cr);
+
+  /* draw grid */
+  const int hpadding = 26;
+  const int space = 42;
+  for (int i = 0; i < 9; i++)
+    {
+      if ((i % 4) == 0)
+        {
+          zlfo_ui_theme_set_cr_color (
+            cr, grid_strong);
+        }
+      else
+        {
+          zlfo_ui_theme_set_cr_color (
+            cr, grid);
+        }
+      cairo_move_to (
+        cr,
+        widget->rect.x + hpadding + i * space,
+        widget->rect.y + 46);
+      cairo_line_to (
+        cr,
+        widget->rect.x + hpadding + i * space,
+        widget->rect.y + 164);
+      cairo_stroke (cr);
+    }
+  zlfo_ui_theme_set_cr_color (
+    cr, grid_strong);
+  cairo_move_to (
+    cr,
+    widget->rect.x + hpadding,
+    widget->rect.y + 105);
+  cairo_line_to (
+    cr,
+    widget->rect.x + hpadding + 8 * space,
+    widget->rect.y + 105);
+  cairo_stroke (cr);
 }
 
 static void
@@ -599,6 +660,161 @@ add_zrythm_icon (
 }
 
 static void
+grid_btn_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  DrawData *  data)
+{
+  /* set background */
+  ZtkWidgetState state = widget->state;
+  int hover = 0;
+  int pressed = 0;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      pressed = 1;
+    }
+  else if (state & ZTK_WIDGET_STATE_HOVERED)
+    {
+      hover = 1;
+    }
+
+  /* draw svgs */
+#define DRAW_SVG(caps,lowercase) \
+  case GRID_BTN_##caps: \
+    { \
+      ZtkRect rect = { \
+        widget->rect.x, \
+        widget->rect.y, \
+        widget->rect.width, \
+        widget->rect.height }; \
+      if (pressed) \
+        { \
+          ztk_rsvg_draw ( \
+            zlfo_ui_theme.lowercase##_click_svg, \
+            cr, &rect); \
+        } \
+      else if (hover) \
+        { \
+          ztk_rsvg_draw ( \
+            zlfo_ui_theme.lowercase##_hover_svg, \
+            cr, &rect); \
+        } \
+      else \
+        { \
+          ztk_rsvg_draw ( \
+            zlfo_ui_theme.lowercase##_svg, \
+            cr, &rect); \
+        } \
+    } \
+    break
+
+  switch (data->val)
+    {
+      DRAW_SVG (SNAP, grid_snap);
+    default:
+      break;
+    }
+
+#undef DRAW_SVG
+}
+
+static void
+grid_lbl_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  DrawData *  data)
+{
+  /* draw svgs */
+#define DRAW_SVG(caps,lowercase) \
+  case LBL_TYPE_##caps: \
+    { \
+      ZtkRect rect = { \
+        widget->rect.x, \
+        widget->rect.y, \
+        widget->rect.width, \
+        widget->rect.height }; \
+      ztk_rsvg_draw ( \
+        zlfo_ui_theme.lowercase##_svg, \
+        cr, &rect); \
+    } \
+    break
+
+  switch (data->val)
+    {
+      DRAW_SVG (INVERT, invert);
+      DRAW_SVG (SHIFT, shift);
+    default:
+      break;
+    }
+
+#undef DRAW_SVG
+}
+
+static void
+add_grid_controls (
+  ZLfoUi * self)
+{
+  int padding = 2;
+  int width = 76;
+  int height = 22;
+  int start = LEFT_BTN_WIDTH + padding + 12;
+  for (int i = 0; i < NUM_GRID_BUTTONS; i++)
+    {
+      ZtkRect rect = {
+        start + padding + i * (width + padding),
+        TOP_BTN_HEIGHT + 12,
+        width, height };
+      DrawData * data =
+        calloc (1, sizeof (DrawData));
+      data->val = i;
+      data->type = DATA_TYPE_BTN_GRID;
+      data->zlfo_ui = self;
+      ZtkDrawingArea * da =
+        ztk_drawing_area_new (
+          &rect, NULL,
+          (ZtkWidgetDrawCallback) grid_btn_draw_cb,
+          NULL, data);
+      ztk_app_add_widget (
+        self->app, (ZtkWidget *) da, 1);
+    }
+
+  /* add labels */
+  padding = 2;
+  width = 76;
+  height = 22;
+  start = LEFT_BTN_WIDTH + padding;
+  for (int i = 0; i < NUM_LBL_TYPES; i++)
+    {
+      ZtkRect rect;
+
+      if (i == LBL_TYPE_INVERT)
+        {
+          rect.x = 156;
+        }
+      else if (i == LBL_TYPE_SHIFT)
+        {
+          rect.x = 300;
+        }
+      rect.y = TOP_BTN_HEIGHT + 12;
+      rect.width = width;
+      rect.height = height;
+
+      DrawData * data =
+        calloc (1, sizeof (DrawData));
+      data->val = i;
+      data->type = DATA_TYPE_LBL;
+      data->zlfo_ui = self;
+      ZtkDrawingArea * da =
+        ztk_drawing_area_new (
+          &rect, NULL,
+          (ZtkWidgetDrawCallback) grid_lbl_draw_cb,
+          NULL, data);
+      ztk_app_add_widget (
+        self->app, (ZtkWidget *) da, 1);
+    }
+}
+
+static void
 create_ui (
   ZLfoUi * self)
 {
@@ -619,6 +835,7 @@ create_ui (
   add_top_buttons (self);
   add_bot_buttons (self);
   add_mid_region_bg (self);
+  add_grid_controls (self);
   add_range (self);
   add_zrythm_icon (self);
 }
