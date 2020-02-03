@@ -54,6 +54,19 @@ typedef struct ZLfoUiTheme
   ZtkRsvgHandle * triangle_svg;
   ZtkRsvgHandle * square_svg;
   ZtkRsvgHandle * rnd_svg;
+  ZtkRsvgHandle * curve_svg;
+  ZtkRsvgHandle * step_svg;
+
+  ZtkRsvgHandle * range_svg;
+
+  ZtkRsvgHandle * sync_svg;
+  ZtkRsvgHandle * freeb_svg;
+  ZtkRsvgHandle * sync_black_svg;
+  ZtkRsvgHandle * freeb_black_svg;
+
+  ZtkRsvgHandle * zrythm_svg;
+  ZtkRsvgHandle * zrythm_hover_svg;
+  ZtkRsvgHandle * zrythm_orange_svg;
 
 } ZLfoUiTheme;
 
@@ -65,7 +78,7 @@ zlfo_ui_theme_init (void)
 #define SET_COLOR(cname,_hex) \
   ztk_color_parse_hex ( \
     &zlfo_ui_theme.cname, _hex); \
-  zlfo_ui_theme.bg.alpha = 1.0
+  zlfo_ui_theme.cname.alpha = 1.0
 
   SET_COLOR (bg, "#323232");
   SET_COLOR (button_normal, "#5A5A5A");
@@ -91,9 +104,20 @@ zlfo_ui_theme_init (void)
     }
 
   LOAD_SVG (sine);
+  LOAD_SVG (triangle);
   LOAD_SVG (saw);
   LOAD_SVG (square);
   LOAD_SVG (rnd);
+  LOAD_SVG (curve);
+  LOAD_SVG (step);
+  LOAD_SVG (range);
+  LOAD_SVG (sync);
+  LOAD_SVG (freeb);
+  LOAD_SVG (sync_black);
+  LOAD_SVG (freeb_black);
+  LOAD_SVG (zrythm);
+  LOAD_SVG (zrythm_hover);
+  LOAD_SVG (zrythm_orange);
 }
 
 /**

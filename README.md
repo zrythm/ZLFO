@@ -10,6 +10,8 @@ ZToolkit for its UI.
 
 This is a work in progress.
 
+Thanks to Mire for the design.
+
 Building
 --------
 

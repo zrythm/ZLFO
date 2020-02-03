@@ -58,12 +58,49 @@
 
 /** Width and height of the window. */
 #define WIDTH 480
-#define HEIGHT 260
+#define HEIGHT 261
+
+#define LEFT_BTN_WIDTH 40
+#define TOP_BTN_HEIGHT 38
+#define MID_REGION_WIDTH 394
+#define MID_BTN_WIDTH 193
+#define MID_REGION_HEIGHT 180
 
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
 
 typedef struct ZtkApp ZtkApp;
+
+typedef enum LeftButton
+{
+  LEFT_BTN_SINE,
+  LEFT_BTN_TRIANGLE,
+  LEFT_BTN_SAW,
+  LEFT_BTN_SQUARE,
+  LEFT_BTN_RND,
+  NUM_LEFT_BUTTONS,
+} LeftButton;
+
+typedef enum TopButton
+{
+  TOP_BTN_CURVE,
+  TOP_BTN_STEP,
+  NUM_TOP_BUTTONS,
+} TopButton;
+
+typedef enum BotButton
+{
+  BOT_BTN_SYNC,
+  BOT_BTN_FREE,
+  NUM_BOT_BUTTONS,
+} BotButton;
+
+typedef enum ButtonPosition
+{
+  BTN_POS_TOP,
+  BTN_POS_LEFT,
+  BTN_POS_BOT,
+} ButtonPosition;
 
 typedef struct ZLfoUi
 {
@@ -101,6 +138,16 @@ typedef struct ZLfoUi
 
   ZtkApp *             app;
 } ZLfoUi;
+
+/**
+ * Data to be passed around in the callbacks.
+ */
+typedef struct ButtonEventData
+{
+  int            btn;
+  ButtonPosition pos;
+  ZLfoUi *       zlfo_ui;
+} ButtonEventData;
 
 #define SEND_PORT_EVENT(_self,idx,val) \
   _self->write ( \
@@ -147,12 +194,6 @@ bg_draw_cb (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
   cairo_fill (cr);
-
-  /* draw test svg */
-  ZtkRect rect = {
-    0, 0, 16, 16 };
-  ztk_rsvg_draw (
-    zlfo_ui_theme.sine_svg, cr, &rect);
 }
 
 static void
@@ -165,6 +206,393 @@ add_bg_widget (
     ztk_drawing_area_new (
       &rect, NULL,
       (ZtkWidgetDrawCallback) bg_draw_cb,
+      NULL, self);
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) da, 0);
+}
+
+static void
+left_btn_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ButtonEventData * data)
+{
+  /* set background */
+  ZtkWidgetState state = widget->state;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      zlfo_ui_theme_set_cr_color (
+        cr, left_button_click);
+    }
+  else if (state & ZTK_WIDGET_STATE_HOVERED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_hover);
+    }
+  else
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_normal);
+    }
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+
+  /* draw svgs */
+#define DRAW_SVG(caps,lowercase) \
+  case LEFT_BTN_##caps: \
+    { \
+      ZtkRect rect = { \
+        widget->rect.x + hpadding, \
+        widget->rect.y + vpadding, \
+        widget->rect.width - hpadding * 2, \
+        widget->rect.height - vpadding * 2 }; \
+      ztk_rsvg_draw ( \
+        zlfo_ui_theme.lowercase##_svg, cr, &rect); \
+    } \
+    break
+
+  const int hpadding = 8;
+  const int vpadding = 4;
+  switch (data->btn)
+    {
+      DRAW_SVG (SINE, sine);
+      DRAW_SVG (TRIANGLE, triangle);
+      DRAW_SVG (SAW, saw);
+      DRAW_SVG (SQUARE, square);
+      DRAW_SVG (RND, rnd);
+    default:
+      break;
+    }
+
+#undef DRAW_SVG
+}
+
+static void
+add_left_buttons (
+  ZLfoUi * self)
+{
+  const int padding = 2;
+  const int width = LEFT_BTN_WIDTH;
+  const int height = 50;
+  for (int i = 0; i < NUM_LEFT_BUTTONS; i++)
+    {
+      ZtkRect rect = {
+        padding, padding + i * (height + padding),
+        width, height };
+      ButtonEventData * data =
+        calloc (1, sizeof (ButtonEventData));
+      data->btn = i;
+      data->pos = BTN_POS_LEFT;
+      data->zlfo_ui = self;
+      ZtkDrawingArea * da =
+        ztk_drawing_area_new (
+          &rect, NULL,
+          (ZtkWidgetDrawCallback) left_btn_draw_cb,
+          NULL, data);
+      ztk_app_add_widget (
+        self->app, (ZtkWidget *) da, 1);
+    }
+}
+
+static void
+top_btn_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ButtonEventData * data)
+{
+  /* set background */
+  ZtkWidgetState state = widget->state;
+  int is_normal = 0;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, selected_bg);
+    }
+  else if (state & ZTK_WIDGET_STATE_HOVERED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_hover);
+    }
+  else
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_normal);
+      is_normal = 1;
+    }
+
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width,
+    is_normal ?
+      /* show border if normal */
+      widget->rect.height - 2 :
+      widget->rect.height + 1);
+  cairo_fill (cr);
+
+
+  /* draw svgs */
+#define DRAW_SVG(caps,lowercase) \
+  case TOP_BTN_##caps: \
+    { \
+      ZtkRect rect = { \
+        widget->rect.x + hpadding, \
+        widget->rect.y + vpadding, \
+        widget->rect.width - hpadding * 2, \
+        widget->rect.height - vpadding * 2 }; \
+      ztk_rsvg_draw ( \
+        zlfo_ui_theme.lowercase##_svg, cr, &rect); \
+    } \
+    break
+
+  const int hpadding = 6;
+  const int vpadding = 6;
+  switch (data->btn)
+    {
+      DRAW_SVG (CURVE, curve);
+      DRAW_SVG (STEP, step);
+    default:
+      break;
+    }
+
+#undef DRAW_SVG
+}
+
+static void
+add_top_buttons (
+  ZLfoUi * self)
+{
+  const int padding = 2;
+  const int width = MID_BTN_WIDTH;
+  const int height = TOP_BTN_HEIGHT;
+  const int start = LEFT_BTN_WIDTH + padding;
+  for (int i = 0; i < NUM_TOP_BUTTONS; i++)
+    {
+      ZtkRect rect = {
+        start + padding + i * (width + padding),
+        padding, width, height };
+      ButtonEventData * data =
+        calloc (1, sizeof (ButtonEventData));
+      data->btn = i;
+      data->pos = BTN_POS_TOP;
+      data->zlfo_ui = self;
+      ZtkDrawingArea * da =
+        ztk_drawing_area_new (
+          &rect, NULL,
+          (ZtkWidgetDrawCallback) top_btn_draw_cb,
+          NULL, data);
+      ztk_app_add_widget (
+        self->app, (ZtkWidget *) da, 1);
+    }
+}
+
+static void
+bot_btn_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ButtonEventData * data)
+{
+  /* set background */
+  ZtkWidgetState state = widget->state;
+  int is_normal = 0;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, selected_bg);
+    }
+  else if (state & ZTK_WIDGET_STATE_HOVERED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_hover);
+    }
+  else
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_normal);
+      is_normal = 1;
+    }
+
+  cairo_rectangle (
+    cr, widget->rect.x,
+    is_normal ?
+      /* show border if normal */
+      widget->rect.y :
+      widget->rect.y - 4,
+    widget->rect.width,
+    is_normal ?
+      /* show border if normal */
+      widget->rect.height :
+      widget->rect.height + 4);
+  cairo_fill (cr);
+
+
+  /* draw svgs */
+#define DRAW_SVG(caps,lowercase) \
+  case BOT_BTN_##caps: \
+    { \
+      ZtkRect rect = { \
+        widget->rect.x + hpadding, \
+        widget->rect.y + vpadding, \
+        widget->rect.width - hpadding * 2, \
+        widget->rect.height - vpadding * 2 }; \
+      ztk_rsvg_draw ( \
+        is_normal ? \
+          zlfo_ui_theme.lowercase##_svg : \
+          zlfo_ui_theme.lowercase##_black_svg, \
+          cr, &rect); \
+    } \
+    break
+
+  const int hpadding = 6;
+  const int vpadding = 0;
+  switch (data->btn)
+    {
+      DRAW_SVG (SYNC, sync);
+      DRAW_SVG (FREE, freeb);
+    default:
+      break;
+    }
+
+#undef DRAW_SVG
+}
+
+static void
+add_bot_buttons (
+  ZLfoUi * self)
+{
+  const int padding = 2;
+  const int width = MID_BTN_WIDTH;
+  const int height = TOP_BTN_HEIGHT;
+  const int start = LEFT_BTN_WIDTH + padding;
+  for (int i = 0; i < NUM_BOT_BUTTONS; i++)
+    {
+      ZtkRect rect = {
+        start + padding + i * (width + padding),
+        TOP_BTN_HEIGHT + 4 + MID_REGION_HEIGHT,
+        width, height };
+      ButtonEventData * data =
+        calloc (1, sizeof (ButtonEventData));
+      data->btn = i;
+      data->pos = BTN_POS_BOT;
+      data->zlfo_ui = self;
+      ZtkDrawingArea * da =
+        ztk_drawing_area_new (
+          &rect, NULL,
+          (ZtkWidgetDrawCallback) bot_btn_draw_cb,
+          NULL, data);
+      ztk_app_add_widget (
+        self->app, (ZtkWidget *) da, 1);
+    }
+}
+
+static void
+mid_region_bg_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  /* set background */
+  zlfo_ui_theme_set_cr_color (cr, selected_bg);
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+}
+
+static void
+add_mid_region_bg (
+  ZLfoUi * self)
+{
+  const int padding = 4;
+  ZtkRect rect = {
+    LEFT_BTN_WIDTH + padding,
+    TOP_BTN_HEIGHT + 2,
+    MID_REGION_WIDTH - 6, MID_REGION_HEIGHT };
+  ZtkDrawingArea * da =
+    ztk_drawing_area_new (
+      &rect, NULL,
+      (ZtkWidgetDrawCallback) mid_region_bg_draw_cb,
+      NULL, self);
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) da, 0);
+}
+
+static void
+range_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  ZtkRect rect = {
+    widget->rect.x,
+    widget->rect.y,
+    widget->rect.width,
+    widget->rect.height };
+  ztk_rsvg_draw (
+    zlfo_ui_theme.range_svg, cr, &rect);
+}
+
+static void
+add_range (
+  ZLfoUi * self)
+{
+  ZtkRect rect = {
+    (LEFT_BTN_WIDTH + MID_REGION_WIDTH) - 10,
+    58,
+    62, 180 };
+  ZtkDrawingArea * da =
+    ztk_drawing_area_new (
+      &rect, NULL,
+      (ZtkWidgetDrawCallback) range_draw_cb,
+      NULL, self);
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) da, 0);
+}
+
+static void
+zrythm_icon_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  ZtkRect rect = {
+    widget->rect.x,
+    widget->rect.y,
+    widget->rect.width,
+    widget->rect.height };
+  ZtkWidgetState state = widget->state;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_hover);
+      /*cairo_rectangle (*/
+        /*cr, widget->rect.x, widget->rect.y,*/
+        /*widget->rect.width, widget->rect.height);*/
+      /*cairo_fill (cr);*/
+      ztk_rsvg_draw (
+        zlfo_ui_theme.zrythm_orange_svg, cr, &rect);
+    }
+  else if (state & ZTK_WIDGET_STATE_HOVERED)
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_hover);
+      /*cairo_rectangle (*/
+        /*cr, widget->rect.x, widget->rect.y,*/
+        /*widget->rect.width, widget->rect.height);*/
+      /*cairo_fill (cr);*/
+      ztk_rsvg_draw (
+        zlfo_ui_theme.zrythm_hover_svg, cr, &rect);
+    }
+  else
+    {
+      zlfo_ui_theme_set_cr_color (cr, button_normal);
+      ztk_rsvg_draw (
+        zlfo_ui_theme.zrythm_svg, cr, &rect);
+    }
+}
+
+static void
+add_zrythm_icon (
+  ZLfoUi * self)
+{
+  ZtkRect rect = {
+    LEFT_BTN_WIDTH + MID_REGION_WIDTH + 8,
+    6, 30, 30 };
+  ZtkDrawingArea * da =
+    ztk_drawing_area_new (
+      &rect, NULL,
+      (ZtkWidgetDrawCallback) zrythm_icon_draw_cb,
       NULL, self);
   ztk_app_add_widget (
     self->app, (ZtkWidget *) da, 0);
@@ -187,6 +615,12 @@ create_ui (
 
   /** add each control */
   add_bg_widget (self);
+  add_left_buttons (self);
+  add_top_buttons (self);
+  add_bot_buttons (self);
+  add_mid_region_bg (self);
+  add_range (self);
+  add_zrythm_icon (self);
 }
 
 static LV2UI_Handle
