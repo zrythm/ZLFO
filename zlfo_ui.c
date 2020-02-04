@@ -172,18 +172,6 @@ typedef struct DrawData
      _self->controller, (uint32_t) idx, \
      sizeof (float), 0, &val)
 
-/* FIXME uncomment */
-#if 0
-
-static float
-get_freq (
-  void *   obj)
-{
-  ZLfoUi * self = (ZLfoUi *) obj;
-  return self->freq;
-}
-#endif
-
 static void
 bg_draw_cb (
   ZtkWidget * widget,
@@ -800,29 +788,38 @@ shift_control_draw_cb (
   double half_width =
     (widget->rect.width  - bg_padding * 2.0) / 2.0;
 
+  double handle_size = 12.0;
+
   /* draw bar */
   double real_val = (double) GET_REAL_VAL;
   if (real_val < 0.5)
     {
       double work_val = real_val / 0.5;
+      double start_x =
+        work_val * half_width - handle_size / 2.0;
       cairo_rectangle (
         cr,
         widget->rect.x + bg_padding +
-          work_val * half_width,
+          (start_x < 0.0 ? 0.0 : start_x),
         widget->rect.y + bg_padding,
-        half_width - work_val * half_width,
+        start_x < 0.0 ?
+          handle_size + start_x : handle_size,
         widget->rect.height - bg_padding * 2);
     }
   else
     {
       double work_val = (real_val - 0.5) / 0.5;
+      double start_x =
+        widget->rect.x + bg_padding + half_width +
+        (work_val * half_width - handle_size / 2.0);
+      double extrusion =
+        (start_x + handle_size) -
+          ((widget->rect.x + widget->rect.width) - bg_padding);
       cairo_rectangle (
-        cr,
-        widget->rect.x + bg_padding +
-          half_width + work_val * half_width,
+        cr, start_x,
         widget->rect.y + bg_padding,
-        half_width -
-          (half_width + work_val * half_width),
+        extrusion > 0.0 ?
+          handle_size - extrusion : handle_size,
         widget->rect.height - bg_padding * 2);
     }
   cairo_fill (cr);

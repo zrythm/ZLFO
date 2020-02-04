@@ -12,10 +12,15 @@ This is a work in progress.
 
 Thanks to Mire for the design.
 
+Dependencies
+------------
+
+Cairo, glib, X11 and librsvg.
+
 Building
 --------
 
-    meson build -Denable_rsvg=true
+    meson build
     ninja -C build
     ninja -C build install
 
