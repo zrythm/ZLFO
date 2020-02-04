@@ -122,23 +122,27 @@ typedef enum DrawDataType
 typedef struct ZLfoUi
 {
   /** Port values. */
-  float                freq;
-  float                phase;
+  float            freq;
+  float            shift;
+  float            range_min;
+  float            range_max;
+  int              step_mode;
+  int              freerun;
 
   LV2UI_Write_Function write;
-  LV2UI_Controller     controller;
+  LV2UI_Controller controller;
 
   /** Map feature. */
-  LV2_URID_Map *       map;
+  LV2_URID_Map *   map;
 
   /** Atom forge. */
-  LV2_Atom_Forge       forge;
+  LV2_Atom_Forge   forge;
 
   /** Log feature. */
-  LV2_Log_Log *        log;
+  LV2_Log_Log *    log;
 
   /** URIs. */
-  ZLfoUris             uris;
+  ZLfoUris         uris;
 
   /**
    * This is the window passed in the features from
@@ -146,14 +150,14 @@ typedef struct ZLfoUi
    *
    * The pugl window will be wrapped in here.
    */
-  void *               parent_window;
+  void *           parent_window;
 
   /**
    * Resize handle for the parent window.
    */
-  LV2UI_Resize*        resize;
+  LV2UI_Resize*    resize;
 
-  ZtkApp *             app;
+  ZtkApp *         app;
 } ZLfoUi;
 
 /**
@@ -291,6 +295,47 @@ add_left_buttons (
     }
 }
 
+static int
+is_btn_mode_active (
+  DrawData * data)
+{
+  ZLfoUi * self = data->zlfo_ui;
+
+  switch (data->type)
+    {
+    case DATA_TYPE_BTN_TOP:
+      switch (data->val)
+        {
+        case TOP_BTN_CURVE:
+          return !self->step_mode;
+          break;
+        case TOP_BTN_STEP:
+          return self->step_mode;
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_LEFT:
+      break;
+    case DATA_TYPE_BTN_BOT:
+      switch (data->val)
+        {
+        case BOT_BTN_SYNC:
+          return !self->freerun;
+          break;
+        case BOT_BTN_FREE:
+          return self->freerun;
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_GRID:
+      break;
+    case DATA_TYPE_LBL:
+      break;
+    }
+
+  return 0;
+}
+
 static void
 top_btn_draw_cb (
   ZtkWidget * widget,
@@ -301,7 +346,8 @@ top_btn_draw_cb (
   ZtkWidgetState state = widget->state;
   int is_normal = 0;
   int clicked = 0;
-  if (state & ZTK_WIDGET_STATE_PRESSED)
+  if (state & ZTK_WIDGET_STATE_PRESSED ||
+      is_btn_mode_active (data))
     {
       zlfo_ui_theme_set_cr_color (cr, selected_bg);
       clicked = 1;
@@ -395,7 +441,8 @@ bot_btn_draw_cb (
   ZtkWidgetState state = widget->state;
   int is_normal = 0;
   int clicked = 0;
-  if (state & ZTK_WIDGET_STATE_PRESSED)
+  if (state & ZTK_WIDGET_STATE_PRESSED ||
+      is_btn_mode_active (data))
     {
       zlfo_ui_theme_set_cr_color (cr, selected_bg);
       clicked = 1;
@@ -706,7 +753,7 @@ shift_control_getter (
   ZtkControl * control,
   ZLfoUi *     self)
 {
-  return self->phase;
+  return self->shift;
 }
 
 static void
@@ -715,8 +762,8 @@ shift_control_setter (
   ZLfoUi *     self,
   float        val)
 {
-  self->phase = val;
-  SEND_PORT_EVENT (self, LFO_PHASE, self->phase);
+  self->shift = val;
+  SEND_PORT_EVENT (self, ZLFO_SHIFT, self->shift);
 }
 
 /**
@@ -1134,11 +1181,27 @@ port_event (
     {
       switch (port_index)
         {
-        case LFO_FREQ:
+        case ZLFO_FREQ:
           self->freq = * (const float *) buffer;
           break;
-        case LFO_PHASE:
-          self->phase = * (const float *) buffer;
+        case ZLFO_SHIFT:
+          self->shift = * (const float *) buffer;
+          break;
+        case ZLFO_RANGE_MIN:
+          self->range_min =
+            * (const float *) buffer;
+          break;
+        case ZLFO_RANGE_MAX:
+          self->range_max =
+            * (const float *) buffer;
+          break;
+        case ZLFO_STEP_MODE:
+          self->step_mode =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_FREE_RUNNING:
+          self->freerun =
+            (int) * (const float *) buffer;
           break;
         default:
           break;

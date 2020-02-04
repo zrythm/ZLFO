@@ -190,23 +190,34 @@ zlfo_ui_lib = shared_library (
   install_dir: zlfodir,
   )
 
-# create and install ttls
+# create and install manifest ttl
 manifest_ttl = configure_file (
   input: 'manifest.ttl.in',
   output: 'manifest.ttl',
-  configuration: zlfo_cdata,
-  )
-zlfo_ttl = configure_file (
-  input: 'zlfo.ttl.in',
-  output: 'zlfo.ttl',
   configuration: zlfo_cdata,
   )
 install_data (
   manifest_ttl,
   install_dir: zlfodir,
   )
-install_data (
-  zlfo_ttl,
+
+# create and install zlfo ttl
+lv2_ttl_gen = executable (
+  'lv2_ttl_gen',
+  sources: [
+    'zlfo_ttl_gen.c',
+    ],
+  include_directories: '.',
+  c_args: common_cflags,
+  install: false,
+  )
+zlfo_ttl = custom_target (
+  'zlfo.ttl',
+  output: 'zlfo.ttl',
+  input: [ lv2_ttl_gen, zlfo_config_h ],
+  command: [
+    lv2_ttl_gen, '@OUTPUT@' ],
+  install: true,
   install_dir: zlfodir,
   )
 

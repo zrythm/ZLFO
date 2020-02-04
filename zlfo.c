@@ -37,15 +37,18 @@ typedef struct ZLFO
   /** Plugin ports. */
   const LV2_Atom_Sequence* control;
   LV2_Atom_Sequence* notify;
+  const float * gate;
+  const float * trigger;
   const float * freq;
-  const float * phase;
-  const int *   follow_time;
-  float *       sine;
-  float *       saw_up;
-  float *       saw_down;
-  float *       triangle;
-  float *       square;
-  float *       random;
+  const float * shift;
+  const float * range_min;
+  const float * range_max;
+  const float * step_mode;
+  const float * freerun;
+
+  /* outputs */
+  float *       cv_out;
+  float *       audio_out;
 
   /** Frequency during the last run. */
   float         last_freq;
@@ -133,38 +136,52 @@ connect_port (
 
   switch ((PortIndex) port)
     {
-    case LFO_CONTROL:
+    case ZLFO_CONTROL:
       self->control =
         (const LV2_Atom_Sequence *) data;
       break;
-    case LFO_NOTIFY:
+    case ZLFO_NOTIFY:
       self->notify =
         (LV2_Atom_Sequence *) data;
       break;
-    case LFO_FREQ:
+    case ZLFO_FREQ:
       self->freq = (const float *) data;
       break;
-    case LFO_PHASE:
-      self->phase = (const float *) data;
+    case ZLFO_SHIFT:
+      self->shift = (const float *) data;
       break;
-    case LFO_SINE:
+    case ZLFO_RANGE_MIN:
+      self->range_min = (const float *) data;
+      break;
+    case ZLFO_RANGE_MAX:
+      self->range_max = (const float *) data;
+      break;
+    case ZLFO_STEP_MODE:
+      self->step_mode = (const float *) data;
+      break;
+    case ZLFO_FREE_RUNNING:
+      self->freerun = (const float *) data;
+      break;
+#if 0
+    case ZLFO_SINE:
       self->sine = (float *) data;
       break;
-    case LFO_SAW_UP:
+    case ZLFO_SAW_UP:
       self->saw_up = (float *) data;
       break;
-    case LFO_SAW_DOWN:
+    case ZLFO_SAW_DOWN:
       self->saw_down = (float *) data;
       break;
-    case LFO_TRIANGLE:
+    case ZLFO_TRIANGLE:
       self->triangle = (float *) data;
       break;
-    case LFO_SQUARE:
+    case ZLFO_SQUARE:
       self->square = (float *) data;
       break;
-    case LFO_RANDOM:
+    case ZLFO_RANDOM:
       self->random = (float *) data;
       break;
+#endif
     default:
       break;
     }
@@ -239,6 +256,7 @@ run (
       recalc_multipliers (self);
     }
 
+#if 0
   for (uint32_t i = 0; i < n_samples; i++)
     {
       /* handle sine */
@@ -276,6 +294,7 @@ run (
 
       self->samples_processed++;
     }
+#endif
 
   /* remember frequency */
   self->last_freq = *self->freq;
