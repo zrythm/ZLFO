@@ -69,6 +69,8 @@
 #define SYNC_RATE_BOX_HEIGHT 16
 #define FREQ_BOX_WIDTH 48
 #define ARROW_BTN_WIDTH 15
+#define RANGE_POINT_WIDTH 10
+#define RANGE_HEIGHT 150
 
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
@@ -182,61 +184,37 @@ typedef struct DrawData
      _self->controller, (uint32_t) idx, \
      sizeof (float), 0, &val)
 
-static float
-shift_control_getter (
-  ZtkControl * control,
-  ZLfoUi *     self)
-{
-  return self->shift;
+#define GENERIC_GETTER(sc) \
+static float \
+sc##_getter ( \
+  ZtkControl * control, \
+  ZLfoUi *     self) \
+{ \
+  return self->sc; \
 }
 
-static void
-shift_control_setter (
-  ZtkControl * control,
-  ZLfoUi *     self,
-  float        val)
-{
-  self->shift = val;
-  SEND_PORT_EVENT (self, ZLFO_SHIFT, self->shift);
+#define DEFINE_GET_SET(caps,sc) \
+GENERIC_GETTER (sc); \
+static void \
+sc##_setter ( \
+  ZtkControl * control, \
+  ZLfoUi *     self, \
+  float        val) \
+{ \
+  self->sc = val; \
+  ztk_debug ( \
+    "setting " #sc " to %f", (double) val); \
+  SEND_PORT_EVENT (self, ZLFO_##caps, self->sc); \
 }
 
-static float
-sync_rate_getter (
-  ZtkControl * control,
-  ZLfoUi *     self)
-{
-  return self->sync_rate;
-}
+DEFINE_GET_SET (SHIFT, shift);
+DEFINE_GET_SET (SYNC_RATE, sync_rate);
+DEFINE_GET_SET (FREQ, freq);
+DEFINE_GET_SET (RANGE_MIN, range_min);
+DEFINE_GET_SET (RANGE_MAX, range_max);
 
-static void
-sync_rate_setter (
-  ZtkControl * control,
-  ZLfoUi *     self,
-  float        val)
-{
-  self->sync_rate = val;
-  SEND_PORT_EVENT (
-    self, ZLFO_SYNC_RATE, self->sync_rate);
-}
-
-static float
-freq_getter (
-  ZtkControl * control,
-  ZLfoUi *     self)
-{
-  return self->freq;
-}
-
-static void
-freq_setter (
-  ZtkControl * control,
-  ZLfoUi *     self,
-  float        val)
-{
-  self->freq = val;
-  SEND_PORT_EVENT (
-    self, ZLFO_FREQ, self->freq);
-}
+#undef GENERIC_GETTER
+#undef DEFINE_GET_SET
 
 static void
 bg_draw_cb (
@@ -635,8 +613,6 @@ sync_rate_control_draw_cb (
   cairo_t *   cr,
   ZLfoUi *    self)
 {
-  /*ZtkControl * ctrl = (ZtkControl *) widget;*/
-
   /* draw black bg */
   zlfo_ui_theme_set_cr_color (cr, bg);
   cairo_rectangle (
@@ -965,6 +941,7 @@ range_draw_cb (
   cairo_t *   cr,
   ZLfoUi *    self)
 {
+  /* draw bg svg */
   ZtkRect rect = {
     widget->rect.x,
     widget->rect.y,
@@ -972,17 +949,164 @@ range_draw_cb (
     widget->rect.height };
   ztk_rsvg_draw (
     zlfo_ui_theme.range_svg, cr, &rect);
+
+  /* draw range */
+  double width = RANGE_POINT_WIDTH;
+  double start_x = 460.3 - width / 2;
+  double start_y = 83 - width / 2;
+  double range_height = RANGE_HEIGHT;
+  zlfo_ui_theme_set_cr_color (
+    cr, button_click);
+
+  /* range */
+  double range_min_y_normalized =
+    1.0 - ((double) self->range_min + 1.0) / 2.0;
+  double range_max_y_normalized =
+    1.0 - ((double) self->range_max + 1.0) / 2.0;
+  cairo_set_line_width (cr, 4.0);
+  cairo_move_to (
+    cr, start_x + width / 2,
+    start_y + range_max_y_normalized *
+      range_height + width / 2);
+  cairo_line_to (
+    cr, start_x + width / 2,
+    start_y + range_min_y_normalized *
+      range_height + width / 2);
+  cairo_stroke (cr);
+}
+
+typedef struct RangePointData
+{
+  /** 1 if min, 0 if max. */
+  int is_min;
+
+  ZtkDrawingArea * da;
+
+  ZLfoUi * zlfo_ui;
+} RangePointData;
+
+static void
+range_point_update_cb (
+  ZtkWidget * w,
+  RangePointData * data)
+{
+  ZLfoUi * self = data->zlfo_ui;
+
+  /* get min/max coordinates */
+  double min_y =
+    (1.0 - ((-1.0 +
+      1.0) / 2.0)) * RANGE_HEIGHT +
+     83 - RANGE_POINT_WIDTH / 2;
+  double max_y =
+    (1.0 - ((1.0 +
+      1.0) / 2.0)) * RANGE_HEIGHT +
+     83 - RANGE_POINT_WIDTH / 2;
+  (void) min_y;
+
+  if (w->state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      double dy = w->app->offset_press_y;
+      dy -= (max_y + w->rect.height / 2.0);
+      dy = dy / RANGE_HEIGHT;
+      dy = CLAMP (dy, 0.0, 1.0);
+      dy = 1.0 - dy;
+
+      /* at this point, dy is 1 at the top and 0
+       * at the bot */
+
+      dy = dy * 2.0 - 1.0;
+
+      if (data->is_min)
+        {
+          range_min_setter (
+            NULL, self, (float) dy);
+        }
+      else
+        {
+          range_max_setter (
+            NULL, self, (float) dy);
+        }
+    }
+
+  (void) range_min_getter;
+  (void) range_max_getter;
+
+  /* update position */
+  w->rect.y =
+    (1.0 - (((double)
+      (data->is_min ?
+         self->range_min : self->range_max) +
+      1.0) / 2.0)) * RANGE_HEIGHT +
+     83 - RANGE_POINT_WIDTH / 2;
+}
+
+static void
+range_point_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  RangePointData * data)
+{
+  double width = RANGE_POINT_WIDTH;
+  double start_x = widget->rect.x;
+  double start_y = widget->rect.y;
+
+  zlfo_ui_theme_set_cr_color (
+    cr, button_click);
+  cairo_arc (
+    cr, start_x + width / 2, start_y + width / 2,
+    width / 2,
+    0, 2 * G_PI);
+  cairo_fill (cr);
 }
 
 static void
 add_range (
   ZLfoUi * self)
 {
+  /* add min point */
+  double point_start_x =
+    460.3 - RANGE_POINT_WIDTH / 2;
+  double point_start_y = 83 - RANGE_POINT_WIDTH / 2;
   ZtkRect rect = {
-    (LEFT_BTN_WIDTH + MID_REGION_WIDTH) - 10,
-    58,
-    62, 180 };
+    point_start_x, point_start_y,
+    RANGE_POINT_WIDTH, RANGE_POINT_WIDTH };
+  RangePointData * rp =
+    calloc (1, sizeof (RangePointData));
+  rp->is_min = 1;
+  rp->zlfo_ui = self;
   ZtkDrawingArea * da =
+    ztk_drawing_area_new (
+      &rect,
+      (ZtkWidgetGenericCallback)
+      range_point_update_cb,
+      (ZtkWidgetDrawCallback) range_point_draw_cb,
+      NULL, rp);
+  rp->da = da;
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) da, 2);
+
+  /* add max point */
+  rp = calloc (1, sizeof (RangePointData));
+  rp->is_min = 0;
+  rp->zlfo_ui = self;
+  da =
+    ztk_drawing_area_new (
+      &rect,
+      (ZtkWidgetGenericCallback)
+      range_point_update_cb,
+      (ZtkWidgetDrawCallback) range_point_draw_cb,
+      NULL, rp);
+  rp->da = da;
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) da, 2);
+
+  /* add line */
+  rect.x =
+    (LEFT_BTN_WIDTH + MID_REGION_WIDTH) - 10;
+  rect.y = 58;
+  rect.width = 64;
+  rect.height = 180;
+  da =
     ztk_drawing_area_new (
       &rect, NULL,
       (ZtkWidgetDrawCallback) range_draw_cb,
@@ -1006,26 +1130,19 @@ zrythm_icon_draw_cb (
   if (state & ZTK_WIDGET_STATE_PRESSED)
     {
       zlfo_ui_theme_set_cr_color (cr, button_hover);
-      /*cairo_rectangle (*/
-        /*cr, widget->rect.x, widget->rect.y,*/
-        /*widget->rect.width, widget->rect.height);*/
-      /*cairo_fill (cr);*/
       ztk_rsvg_draw (
         zlfo_ui_theme.zrythm_orange_svg, cr, &rect);
     }
   else if (state & ZTK_WIDGET_STATE_HOVERED)
     {
       zlfo_ui_theme_set_cr_color (cr, button_hover);
-      /*cairo_rectangle (*/
-        /*cr, widget->rect.x, widget->rect.y,*/
-        /*widget->rect.width, widget->rect.height);*/
-      /*cairo_fill (cr);*/
       ztk_rsvg_draw (
         zlfo_ui_theme.zrythm_hover_svg, cr, &rect);
     }
   else
     {
-      zlfo_ui_theme_set_cr_color (cr, button_normal);
+      zlfo_ui_theme_set_cr_color (
+        cr, button_normal);
       ztk_rsvg_draw (
         zlfo_ui_theme.zrythm_svg, cr, &rect);
     }
@@ -1302,12 +1419,13 @@ add_grid_controls (
   ZtkControl * control =
     ztk_control_new (
       &rect,
-      (ZtkControlGetter) shift_control_getter,
-      (ZtkControlSetter) shift_control_setter,
+      (ZtkControlGetter) shift_getter,
+      (ZtkControlSetter) shift_setter,
       (ZtkWidgetDrawCallback) shift_control_draw_cb,
       ZTK_CTRL_DRAG_HORIZONTAL,
       self, 0.f, 1.f, 0.5f);
   control->sensitivity = 0.02f;
+  ztk_control_set_relative_mode (control, 0);
   ztk_app_add_widget (
     self->app, (ZtkWidget *) control, 1);
 
