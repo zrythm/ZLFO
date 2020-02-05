@@ -212,60 +212,15 @@ add_bg_widget (
     self->app, (ZtkWidget *) da, 0);
 }
 
+/**
+ * Called when one of the buttons was clicked.
+ */
 static void
-left_btn_draw_cb (
+on_btn_clicked (
   ZtkWidget * widget,
-  cairo_t *   cr,
-  DrawData * data)
+  DrawData *  data)
 {
-  /* set background */
-  ZtkWidgetState state = widget->state;
-  if (state & ZTK_WIDGET_STATE_PRESSED)
-    {
-      zlfo_ui_theme_set_cr_color (
-        cr, left_button_click);
-    }
-  else if (state & ZTK_WIDGET_STATE_HOVERED)
-    {
-      zlfo_ui_theme_set_cr_color (cr, button_hover);
-    }
-  else
-    {
-      zlfo_ui_theme_set_cr_color (cr, button_normal);
-    }
-  cairo_rectangle (
-    cr, widget->rect.x, widget->rect.y,
-    widget->rect.width, widget->rect.height);
-  cairo_fill (cr);
-
-  /* draw svgs */
-#define DRAW_SVG(caps,lowercase) \
-  case LEFT_BTN_##caps: \
-    { \
-      ZtkRect rect = { \
-        widget->rect.x + hpadding, \
-        widget->rect.y + vpadding, \
-        widget->rect.width - hpadding * 2, \
-        widget->rect.height - vpadding * 2 }; \
-      ztk_rsvg_draw ( \
-        zlfo_ui_theme.lowercase##_svg, cr, &rect); \
-    } \
-    break
-
-  const int hpadding = 8;
-  const int vpadding = 4;
-  switch (data->val)
-    {
-      DRAW_SVG (SINE, sine);
-      DRAW_SVG (TRIANGLE, triangle);
-      DRAW_SVG (SAW, saw);
-      DRAW_SVG (SQUARE, square);
-      DRAW_SVG (RND, rnd);
-    default:
-      break;
-    }
-
-#undef DRAW_SVG
+  ztk_message ("%s", "Button clicked!");
 }
 
 static void
@@ -285,19 +240,50 @@ add_left_buttons (
       data->val = i;
       data->type = DATA_TYPE_BTN_LEFT;
       data->zlfo_ui = self;
-      ZtkDrawingArea * da =
-        ztk_drawing_area_new (
-          &rect, NULL,
-          (ZtkWidgetDrawCallback) left_btn_draw_cb,
-          NULL, data);
+      ZtkButton * btn =
+        ztk_button_new (
+          &rect,
+          (ZtkWidgetActivateCallback)
+          on_btn_clicked, data);
+      ztk_button_set_background_colors (
+        btn,
+        &zlfo_ui_theme.button_normal,
+        &zlfo_ui_theme.button_hover,
+        &zlfo_ui_theme.left_button_click);
+
+#define MAKE_BUTTON_SVGED(caps,lowercase) \
+  case LEFT_BTN_##caps: \
+    { \
+      ztk_button_make_svged (\
+        btn, hpadding, vpadding, \
+        zlfo_ui_theme.lowercase##_svg, \
+        zlfo_ui_theme.lowercase##_svg, \
+        zlfo_ui_theme.lowercase##_svg); \
+    } \
+    break
+
+      int hpadding = 8;
+      int vpadding = 4;
+      switch (data->val)
+        {
+          MAKE_BUTTON_SVGED (SINE, sine);
+          MAKE_BUTTON_SVGED (TRIANGLE, triangle);
+          MAKE_BUTTON_SVGED (SAW, saw);
+          MAKE_BUTTON_SVGED (SQUARE, square);
+          MAKE_BUTTON_SVGED (RND, rnd);
+        }
+
+#undef MAKE_BUTTON_SVGED
+
       ztk_app_add_widget (
-        self->app, (ZtkWidget *) da, 1);
+        self->app, (ZtkWidget *) btn, 1);
     }
 }
 
 static int
-is_btn_mode_active (
-  DrawData * data)
+get_button_active (
+  ZtkButton * btn,
+  DrawData *  data)
 {
   ZLfoUi * self = data->zlfo_ui;
 
@@ -337,20 +323,18 @@ is_btn_mode_active (
 }
 
 static void
-top_btn_draw_cb (
-  ZtkWidget * widget,
+top_and_bot_btn_bg_cb (
+  ZtkWidget * w,
   cairo_t *   cr,
-  DrawData * data)
+  DrawData *  data)
 {
   /* set background */
-  ZtkWidgetState state = widget->state;
+  ZtkWidgetState state = w->state;
   int is_normal = 0;
-  int clicked = 0;
   if (state & ZTK_WIDGET_STATE_PRESSED ||
-      is_btn_mode_active (data))
+      get_button_active ((ZtkButton *) w, data))
     {
       zlfo_ui_theme_set_cr_color (cr, selected_bg);
-      clicked = 1;
     }
   else if (state & ZTK_WIDGET_STATE_HOVERED)
     {
@@ -363,44 +347,30 @@ top_btn_draw_cb (
       is_normal = 1;
     }
 
-  cairo_rectangle (
-    cr, widget->rect.x, widget->rect.y,
-    widget->rect.width,
-    is_normal ?
-      /* show border if normal */
-      widget->rect.height - 2 :
-      widget->rect.height + 1);
-  cairo_fill (cr);
-
-
-  /* draw svgs */
-#define DRAW_SVG(caps,lowercase) \
-  case TOP_BTN_##caps: \
-    { \
-      ZtkRect rect = { \
-        widget->rect.x + hpadding, \
-        widget->rect.y + vpadding, \
-        widget->rect.width - hpadding * 2, \
-        widget->rect.height - vpadding * 2 }; \
-      ztk_rsvg_draw ( \
-        clicked ? \
-          zlfo_ui_theme.lowercase##_active_svg : \
-          zlfo_ui_theme.lowercase##_svg, \
-          cr, &rect); \
-    } \
-    break
-
-  const int hpadding = 6;
-  const int vpadding = 6;
-  switch (data->val)
+  if (data->type == DATA_TYPE_BTN_TOP)
     {
-      DRAW_SVG (CURVE, curve);
-      DRAW_SVG (STEP, step);
-    default:
-      break;
+      cairo_rectangle (
+        cr, w->rect.x, w->rect.y, w->rect.width,
+        is_normal ?
+          /* show border if normal */
+          w->rect.height - 2 :
+          w->rect.height + 1);
     }
-
-#undef DRAW_SVG
+  else if (data->type == DATA_TYPE_BTN_BOT)
+    {
+      cairo_rectangle (
+        cr, w->rect.x,
+        is_normal ?
+          /* show border if normal */
+          w->rect.y :
+          w->rect.y - 3,
+        w->rect.width,
+        is_normal ?
+          /* show border if normal */
+          w->rect.height :
+          w->rect.height + 3);
+    }
+  cairo_fill (cr);
 }
 
 static void
@@ -421,84 +391,44 @@ add_top_buttons (
       data->val = i;
       data->type = DATA_TYPE_BTN_TOP;
       data->zlfo_ui = self;
-      ZtkDrawingArea * da =
-        ztk_drawing_area_new (
-          &rect, NULL,
-          (ZtkWidgetDrawCallback) top_btn_draw_cb,
-          NULL, data);
-      ztk_app_add_widget (
-        self->app, (ZtkWidget *) da, 1);
-    }
-}
+      ZtkButton * btn =
+        ztk_button_new (
+          &rect,
+          (ZtkWidgetActivateCallback)
+          on_btn_clicked, data);
+      ztk_button_add_background_callback (
+        btn,
+        (ZtkWidgetDrawCallback)
+        top_and_bot_btn_bg_cb);
+      ztk_button_make_toggled (
+        btn,
+        (ZtkButtonToggledGetter)
+        get_button_active);
 
-static void
-bot_btn_draw_cb (
-  ZtkWidget * widget,
-  cairo_t *   cr,
-  DrawData * data)
-{
-  /* set background */
-  ZtkWidgetState state = widget->state;
-  int is_normal = 0;
-  int clicked = 0;
-  if (state & ZTK_WIDGET_STATE_PRESSED ||
-      is_btn_mode_active (data))
-    {
-      zlfo_ui_theme_set_cr_color (cr, selected_bg);
-      clicked = 1;
-    }
-  else if (state & ZTK_WIDGET_STATE_HOVERED)
-    {
-      zlfo_ui_theme_set_cr_color (cr, button_hover);
-    }
-  else
-    {
-      zlfo_ui_theme_set_cr_color (cr, button_normal);
-      is_normal = 1;
-    }
-
-  cairo_rectangle (
-    cr, widget->rect.x,
-    is_normal ?
-      /* show border if normal */
-      widget->rect.y :
-      widget->rect.y - 3,
-    widget->rect.width,
-    is_normal ?
-      /* show border if normal */
-      widget->rect.height :
-      widget->rect.height + 3);
-  cairo_fill (cr);
-
-
-  /* draw svgs */
-#define DRAW_SVG(caps,lowercase) \
-  case BOT_BTN_##caps: \
+#define MAKE_BUTTON_SVGED(caps,lowercase) \
+  case TOP_BTN_##caps: \
     { \
-      ZtkRect rect = { \
-        widget->rect.x + hpadding, \
-        widget->rect.y + vpadding, \
-        widget->rect.width - hpadding * 2, \
-        widget->rect.height - vpadding * 2 }; \
-      ztk_rsvg_draw ( \
-        clicked ? \
-          zlfo_ui_theme.lowercase##_black_svg : \
-          zlfo_ui_theme.lowercase##_svg, \
-          cr, &rect); \
+      ztk_button_make_svged (\
+        btn, hpadding, vpadding, \
+        zlfo_ui_theme.lowercase##_svg, \
+        zlfo_ui_theme.lowercase##_svg, \
+        zlfo_ui_theme.lowercase##_svg); \
     } \
     break
 
-  const int hpadding = 6;
-  const int vpadding = 0;
-  switch (data->val)
-    {
-      DRAW_SVG (SYNC, sync);
-      DRAW_SVG (FREE, freeb);
-    default:
-      break;
-    }
+      int hpadding = 6;
+      int vpadding = 6;
+      switch (data->val)
+        {
+          MAKE_BUTTON_SVGED (CURVE, curve);
+          MAKE_BUTTON_SVGED (STEP, step);
+        }
 
-#undef DRAW_SVG
+#undef MAKE_BUTTON_SVGED
+
+      ztk_app_add_widget (
+        self->app, (ZtkWidget *) btn, 1);
+    }
 }
 
 static void
@@ -520,13 +450,43 @@ add_bot_buttons (
       data->val = i;
       data->type = DATA_TYPE_BTN_BOT;
       data->zlfo_ui = self;
-      ZtkDrawingArea * da =
-        ztk_drawing_area_new (
-          &rect, NULL,
-          (ZtkWidgetDrawCallback) bot_btn_draw_cb,
-          NULL, data);
+      ZtkButton * btn =
+        ztk_button_new (
+          &rect,
+          (ZtkWidgetActivateCallback)
+          on_btn_clicked, data);
+      ztk_button_add_background_callback (
+        btn,
+        (ZtkWidgetDrawCallback)
+        top_and_bot_btn_bg_cb);
+      ztk_button_make_toggled (
+        btn,
+        (ZtkButtonToggledGetter)
+        get_button_active);
+
+#define MAKE_BUTTON_SVGED(caps,lowercase) \
+  case BOT_BTN_##caps: \
+    { \
+      ztk_button_make_svged (\
+        btn, hpadding, vpadding, \
+        zlfo_ui_theme.lowercase##_svg, \
+        zlfo_ui_theme.lowercase##_svg, \
+        zlfo_ui_theme.lowercase##_svg); \
+    } \
+    break
+
+      int hpadding = 6;
+      int vpadding = 0;
+      switch (data->val)
+        {
+          MAKE_BUTTON_SVGED (SYNC, sync);
+          MAKE_BUTTON_SVGED (FREE, freeb);
+        }
+
+#undef MAKE_BUTTON_SVGED
+
       ztk_app_add_widget (
-        self->app, (ZtkWidget *) da, 1);
+        self->app, (ZtkWidget *) btn, 1);
     }
 }
 
