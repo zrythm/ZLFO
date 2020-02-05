@@ -136,6 +136,12 @@ typedef struct ZLfoUi
   int              freerun;
   float            sync_rate;
   float            sync_rate_type;
+  float            nodes[ZLFO_NUM_NODES][3];
+  int              num_nodes;
+
+  /** Non-port values */
+  long             current_sample;
+  double           samplerate;
 
   LV2UI_Write_Function write;
   LV2UI_Controller controller;
@@ -164,6 +170,10 @@ typedef struct ZLfoUi
    * Resize handle for the parent window.
    */
   LV2UI_Resize*    resize;
+
+  /** Pointer to the mid region widget, to use
+   * for redisplaying only its rect. */
+  ZtkWidget *      mid_region;
 
   ZtkApp *         app;
 } ZLfoUi;
@@ -915,6 +925,63 @@ mid_region_bg_draw_cb (
     widget->rect.x + hpadding + 8 * space,
     widget->rect.y + 105);
   cairo_stroke (cr);
+
+  /* draw nodes */
+  for (int i = 0; i < self->num_nodes; i++)
+    {
+      double width = RANGE_POINT_WIDTH;
+      double total_space = 8 * space;
+      double x_offset =
+        (double) self->nodes[i][0];
+      double y_offset =
+        1.0 - (double) self->nodes[i][1];
+      double total_height = 164 - 46;
+
+      zlfo_ui_theme_set_cr_color (cr, grid_strong);
+      cairo_arc (
+        cr,
+        widget->rect.x + hpadding +
+          x_offset * total_space,
+        widget->rect.y + 46 +
+          y_offset * total_height,
+        width / 2,
+        0, 2 * G_PI);
+      cairo_fill (cr);
+
+      zlfo_ui_theme_set_cr_color (cr, line);
+      cairo_set_line_width (cr, 3);
+      cairo_arc (
+        cr,
+        widget->rect.x + hpadding +
+          x_offset * total_space,
+        widget->rect.y + 46 +
+          y_offset * total_height,
+        width / 2,
+        0, 2 * G_PI);
+      cairo_stroke (cr);
+    }
+
+#if 0
+  /* draw current position */
+  long period_size =
+    (long)
+    ((float) self->samplerate / self->freq);
+  double total_space = 8 * space;
+  double current_offset =
+    (double) self->current_sample /
+    (double) period_size;
+  cairo_move_to (
+    cr,
+    widget->rect.x + hpadding +
+      current_offset * total_space,
+    widget->rect.y + 46);
+  cairo_line_to (
+    cr,
+    widget->rect.x + hpadding +
+      current_offset * total_space,
+    widget->rect.y + 164);
+  cairo_stroke (cr);
+#endif
 }
 
 static void
@@ -931,6 +998,7 @@ add_mid_region_bg (
       &rect, NULL,
       (ZtkWidgetDrawCallback) mid_region_bg_draw_cb,
       NULL, self);
+  self->mid_region = (ZtkWidget *) da;
   ztk_app_add_widget (
     self->app, (ZtkWidget *) da, 0);
 }
@@ -1621,8 +1689,23 @@ port_event (
           self->sync_rate_type =
             * (const float *) buffer;
           break;
+        case ZLFO_NUM_NODES:
+          self->num_nodes =
+            (int) * (const float *) buffer;
+          break;
         default:
           break;
+        }
+
+      if (port_index >= ZLFO_NODE_1_POS &&
+          port_index <= ZLFO_NODE_16_VAL)
+        {
+          unsigned int prop =
+            (port_index - ZLFO_NODE_1_POS) % 3;
+          unsigned int node_id =
+            (port_index - ZLFO_NODE_1_POS) / 3;
+          self->nodes[node_id][prop] =
+            * (const float *) buffer;
         }
       puglPostRedisplay (self->app->view);
     }
@@ -1633,12 +1716,51 @@ port_event (
       if (lv2_atom_forge_is_object_type (
             &self->forge, atom->type))
         {
-          /*const LV2_Atom_Object* obj =*/
-            /*(const LV2_Atom_Object*) atom;*/
-
-          /*const char* uri =*/
-            /*(const char*) LV2_ATOM_BODY_CONST (*/
-              /*obj);*/
+          const LV2_Atom_Object* obj =
+            (const LV2_Atom_Object*) atom;
+          if (obj->body.otype ==
+                self->uris.ui_state)
+            {
+              const LV2_Atom* current_sample = NULL;
+              const LV2_Atom* samplerate = NULL;
+              lv2_atom_object_get (
+                obj,
+                self->uris.ui_state_current_sample,
+                &current_sample,
+                self->uris.ui_state_samplerate,
+                &samplerate,
+                NULL);
+              if (current_sample &&
+                  current_sample->type ==
+                    self->uris.atom_Long &&
+                  samplerate &&
+                  samplerate->type ==
+                    self->uris.atom_Double)
+                {
+                  self->current_sample =
+                    ((LV2_Atom_Long*)
+                     current_sample)->body;
+                  self->samplerate =
+                    ((LV2_Atom_Double*)
+                     samplerate)->body;
+                }
+              else
+                {
+                  ztk_warning (
+                    "%s",
+                    "failed to get current sample");
+                }
+            }
+#if 0
+          PuglRect rect;
+          rect.x = self->mid_region->rect.x;
+          rect.y = self->mid_region->rect.y;
+          rect.width = self->mid_region->rect.width;
+          rect.height =
+            self->mid_region->rect.height;
+          puglPostRedisplayRect (
+            self->app->view, rect);
+#endif
         }
       else
         {
@@ -1656,25 +1778,25 @@ port_event (
 }
 
 /* Optional non-embedded UI show interface. */
-/*static int*/
-/*ui_show (LV2UI_Handle handle)*/
-/*{*/
-  /*printf ("show called\n");*/
-  /*ZLfoUi * self = (ZLfoUi *) handle;*/
-  /*ztk_app_show_window (self->app);*/
-  /*return 0;*/
-/*}*/
+static int
+ui_show (LV2UI_Handle handle)
+{
+  printf ("show called\n");
+  ZLfoUi * self = (ZLfoUi *) handle;
+  ztk_app_show_window (self->app);
+  return 0;
+}
 
 /* Optional non-embedded UI hide interface. */
-/*static int*/
-/*ui_hide (LV2UI_Handle handle)*/
-/*{*/
-  /*printf ("hide called\n");*/
-  /*ZLfoUi * self = (ZLfoUi *) handle;*/
-  /*ztk_app_hide_window (self->app);*/
+static int
+ui_hide (LV2UI_Handle handle)
+{
+  printf ("hide called\n");
+  ZLfoUi * self = (ZLfoUi *) handle;
+  ztk_app_hide_window (self->app);
 
-  /*return 0;*/
-/*}*/
+  return 0;
+}
 
 /**
  * LV2 idle interface for optional non-embedded
@@ -1714,6 +1836,8 @@ extension_data (const char* uri)
     ui_idle };
   static const LV2UI_Resize resize = {
     0 ,ui_resize };
+  static const LV2UI_Show_Interface show = {
+    ui_show, ui_hide };
   if (!strcmp(uri, LV2_UI__idleInterface))
     {
       return &idle;
@@ -1721,6 +1845,10 @@ extension_data (const char* uri)
   if (!strcmp(uri, LV2_UI__resize))
     {
       return &resize;
+    }
+  if (!strcmp(uri, LV2_UI__showInterface))
+    {
+      return &show;
     }
   return NULL;
 }

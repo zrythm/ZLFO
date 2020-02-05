@@ -47,6 +47,7 @@ typedef struct ZLFO
   const float * freerun;
   const float * sync_rate;
   const float * sync_rate_type;
+  const float * nodes[ZLFO_NUM_NODES][3];
 
   /* outputs */
   float *       cv_out;
@@ -58,11 +59,19 @@ typedef struct ZLFO
   /** Plugin samplerate. */
   double        samplerate;
 
-  /** Total samples processed. */
-  uint64_t      samples_processed;
+  /** Size of 1 LFO period in samples. */
+  long          period_size;
+
+  /**
+   * Current sample index in the period.
+   *
+   * This should be sent to the UI.
+   */
+  long          current_sample;
 
   /** Atom forge. */
   LV2_Atom_Forge forge;
+  LV2_Atom_Forge_Frame notify_frame;
 
   /** Log feature. */
   LV2_Log_Log *        log;
@@ -81,6 +90,9 @@ typedef struct ZLFO
   float         sine_multiplier;
 
   float         saw_up_multiplier;
+
+  /** Whether the UI is active or not. */
+  int           ui_active;
 
 } ZLFO;
 
@@ -193,13 +205,17 @@ connect_port (
     default:
       break;
     }
-}
 
-static void
-activate (
-  LV2_Handle instance)
-{
-  /*ZLFO * self = (ZLFO*) instance;*/
+  if (port >= ZLFO_NODE_1_POS &&
+      port <= ZLFO_NODE_16_VAL)
+    {
+      unsigned int prop =
+        (port - ZLFO_NODE_1_POS) % 3;
+      unsigned int node_id =
+        (port - ZLFO_NODE_1_POS) / 3;
+      self->nodes[node_id][prop] =
+        (const float *) data;
+    }
 }
 
 static void
@@ -248,6 +264,61 @@ recalc_multipliers (
    */
   self->saw_up_multiplier =
     (*self->freq / (float) self->samplerate);
+
+  self->period_size =
+    (uint32_t)
+    ((float) self->samplerate / * self->freq);
+  self->current_sample = 0;
+}
+
+static void
+activate (
+  LV2_Handle instance)
+{
+  ZLFO * self = (ZLFO*) instance;
+
+  recalc_multipliers (self);
+}
+
+static void
+send_messages_to_ui (
+  ZLFO * self)
+{
+  /* set up forge to write directly to notify
+   * output port */
+  const uint32_t notify_capacity =
+    self->notify->atom.size;
+  lv2_atom_forge_set_buffer (
+    &self->forge, (uint8_t*) self->notify,
+    notify_capacity);
+
+  /* start a sequence in the notify output port */
+  lv2_atom_forge_sequence_head (
+    &self->forge, &self->notify_frame, 0);
+
+  /* forge container object of type "ui_state" */
+  lv2_atom_forge_frame_time (&self->forge, 0);
+  LV2_Atom_Forge_Frame frame;
+  lv2_atom_forge_object (
+    &self->forge, &frame, 1,
+    self->uris.ui_state);
+
+  /* append property for current sample */
+  lv2_atom_forge_key (
+    &self->forge,
+    self->uris.ui_state_current_sample);
+  lv2_atom_forge_long (
+    &self->forge, self->current_sample);
+
+  /* append samplerate */
+  lv2_atom_forge_key (
+    &self->forge,
+    self->uris.ui_state_samplerate);
+  lv2_atom_forge_double (
+    &self->forge, self->samplerate);
+
+  /* finish object */
+  lv2_atom_forge_pop (&self->forge, &frame);
 }
 
 static void
@@ -257,16 +328,16 @@ run (
 {
   ZLFO * self = (ZLFO *) instance;
 
-  /* if first run or freq changed, set the multipliers */
-  if (self->samples_processed == 0 ||
-      fabsf (self->last_freq - *self->freq) > 0.0001f)
+  /* if freq changed, set the multipliers */
+  if (fabsf (self->last_freq - *self->freq) >
+        0.0001f)
     {
       recalc_multipliers (self);
     }
 
-#if 0
   for (uint32_t i = 0; i < n_samples; i++)
     {
+#if 0
       /* handle sine */
       self->sine[i] =
         sinf (
@@ -299,13 +370,18 @@ run (
       /*self->random[i] =*/
         /*((float) rand () / (float) ((float) RAND_MAX / 2.f)) -*/
           /*1.f;*/
-
-      self->samples_processed++;
-    }
 #endif
+
+      self->current_sample++;
+      if (self->current_sample ==
+            self->period_size)
+        self->current_sample = 0;
+    }
 
   /* remember frequency */
   self->last_freq = *self->freq;
+
+  send_messages_to_ui (self);
 }
 
 static void

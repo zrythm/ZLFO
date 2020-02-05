@@ -26,6 +26,8 @@
 #ifndef __Z_LFO_COMMON_H__
 #define __Z_LFO_COMMON_H__
 
+#include "config.h"
+
 #include <string.h>
 
 #include "lv2/atom/atom.h"
@@ -43,12 +45,21 @@ typedef struct ZLfoUris
   LV2_URID atom_Blank;
   LV2_URID atom_Object;
   LV2_URID atom_Float;
+  LV2_URID atom_Double;
   LV2_URID atom_Int;
+  LV2_URID atom_Long;
   LV2_URID log_Entry;
   LV2_URID log_Error;
   LV2_URID log_Note;
   LV2_URID log_Trace;
   LV2_URID log_Warning;
+
+  /* custom URIs */
+  LV2_URID ui_state;
+  LV2_URID ui_on;
+  LV2_URID ui_off;
+  LV2_URID ui_state_current_sample;
+  LV2_URID ui_state_samplerate;
 } ZLfoUris;
 
 typedef enum PortIndex
@@ -154,13 +165,24 @@ map_uris (
   MAP (atom_Blank, LV2_ATOM__Blank);
   MAP (atom_Object, LV2_ATOM__Object);
   MAP (atom_Float, LV2_ATOM__Float);
+  MAP (atom_Double, LV2_ATOM__Double);
   MAP (atom_Int, LV2_ATOM__Int);
+  MAP (atom_Long, LV2_ATOM__Long);
   MAP (atom_eventTransfer, LV2_ATOM__eventTransfer);
   MAP (log_Entry, LV2_LOG__Entry);
   MAP (log_Error, LV2_LOG__Error);
   MAP (log_Note, LV2_LOG__Note);
   MAP (log_Trace, LV2_LOG__Trace);
   MAP (log_Warning, LV2_LOG__Warning);
+  MAP (ui_on, LFO_URI "#ui_on");
+  MAP (ui_off, LFO_URI "#ui_off");
+  MAP (ui_state, LFO_URI "#ui_state");
+  MAP (
+    ui_state_current_sample,
+    LFO_URI "#ui_state_current_sample");
+  MAP (
+    ui_state_samplerate,
+    LFO_URI "#ui_state_samplerate");
 }
 
 /**
