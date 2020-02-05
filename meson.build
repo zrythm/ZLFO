@@ -76,6 +76,7 @@ zlfo_config_h_dep = declare_dependency (
 
 zlfo_deps = [
   zlfo_config_h_dep,
+  cc.find_library ('m'),
   ]
 ztoolkit_dep = dependency(
   'ztoolkit', version: '>= 0.1',
@@ -165,7 +166,7 @@ zlfo_dsp_lib = shared_library (
   sources: [
     'zlfo.c',
     ],
-  dependencies: [ zlfo_deps, cc.find_library('m') ],
+  dependencies: zlfo_deps,
   include_directories: '.',
   install: true,
   install_dir: zlfodir,

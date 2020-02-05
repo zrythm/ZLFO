@@ -207,7 +207,7 @@ connect_port (
     }
 
   if (port >= ZLFO_NODE_1_POS &&
-      port <= ZLFO_NODE_16_VAL)
+      port <= ZLFO_NODE_16_CURVE)
     {
       unsigned int prop =
         (port - ZLFO_NODE_1_POS) % 3;

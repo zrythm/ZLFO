@@ -71,6 +71,22 @@
 #define ARROW_BTN_WIDTH 15
 #define RANGE_POINT_WIDTH 10
 #define RANGE_HEIGHT 150
+#define GRID_HPADDING 26
+#define GRID_SPACE 42
+#define GRID_WIDTH (8 * GRID_SPACE)
+#define GRID_XSTART_GLOBAL \
+  (LEFT_BTN_WIDTH + 4 + GRID_HPADDING)
+#define GRID_XEND_GLOBAL \
+  (LEFT_BTN_WIDTH + 4 + GRID_HPADDING + \
+   8 * GRID_SPACE)
+#define GRID_YSTART_OFFSET 46
+#define GRID_YEND_OFFSET 164
+#define GRID_YSTART_GLOBAL \
+    (TOP_BTN_HEIGHT + 2 + GRID_YSTART_OFFSET)
+#define GRID_YEND_GLOBAL \
+    (TOP_BTN_HEIGHT + 2 + GRID_YEND_OFFSET)
+#define GRID_HEIGHT \
+  (GRID_YEND_OFFSET - GRID_YSTART_OFFSET)
 
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
@@ -136,7 +152,7 @@ typedef struct ZLfoUi
   int              freerun;
   float            sync_rate;
   float            sync_rate_type;
-  float            nodes[ZLFO_NUM_NODES][3];
+  float            nodes[16][3];
   int              num_nodes;
 
   /** Non-port values */
@@ -174,6 +190,9 @@ typedef struct ZLfoUi
   /** Pointer to the mid region widget, to use
    * for redisplaying only its rect. */
   ZtkWidget *      mid_region;
+
+  /** Widgets for the current nodes. */
+  ZtkWidget *      node_widgets[16];
 
   ZtkApp *         app;
 } ZLfoUi;
@@ -225,6 +244,28 @@ DEFINE_GET_SET (RANGE_MAX, range_max);
 
 #undef GENERIC_GETTER
 #undef DEFINE_GET_SET
+
+static void
+node_pos_setter (
+  ZLfoUi *     self,
+  unsigned int idx,
+  float        val)
+{
+  self->nodes[idx][0] = val;
+  SEND_PORT_EVENT (
+    self, ZLFO_NODE_1_POS + idx * 3, val);
+}
+
+static void
+node_val_setter (
+  ZLfoUi *     self,
+  unsigned int idx,
+  float        val)
+{
+  self->nodes[idx][1] = val;
+  SEND_PORT_EVENT (
+    self, ZLFO_NODE_1_VAL + idx * 3, val);
+}
 
 static void
 bg_draw_cb (
@@ -890,8 +931,6 @@ mid_region_bg_draw_cb (
   cairo_fill (cr);
 
   /* draw grid */
-  const int hpadding = 26;
-  const int space = 42;
   for (int i = 0; i < 9; i++)
     {
       if ((i % 4) == 0)
@@ -906,60 +945,27 @@ mid_region_bg_draw_cb (
         }
       cairo_move_to (
         cr,
-        widget->rect.x + hpadding + i * space,
-        widget->rect.y + 46);
+        widget->rect.x + GRID_HPADDING +
+          i * GRID_SPACE,
+        widget->rect.y + GRID_YSTART_OFFSET);
       cairo_line_to (
         cr,
-        widget->rect.x + hpadding + i * space,
-        widget->rect.y + 164);
+        widget->rect.x + GRID_HPADDING +
+          i * GRID_SPACE,
+        widget->rect.y + GRID_YEND_OFFSET);
       cairo_stroke (cr);
     }
   zlfo_ui_theme_set_cr_color (
     cr, grid_strong);
   cairo_move_to (
     cr,
-    widget->rect.x + hpadding,
+    GRID_XSTART_GLOBAL,
     widget->rect.y + 105);
   cairo_line_to (
     cr,
-    widget->rect.x + hpadding + 8 * space,
+    GRID_XEND_GLOBAL,
     widget->rect.y + 105);
   cairo_stroke (cr);
-
-  /* draw nodes */
-  for (int i = 0; i < self->num_nodes; i++)
-    {
-      double width = RANGE_POINT_WIDTH;
-      double total_space = 8 * space;
-      double x_offset =
-        (double) self->nodes[i][0];
-      double y_offset =
-        1.0 - (double) self->nodes[i][1];
-      double total_height = 164 - 46;
-
-      zlfo_ui_theme_set_cr_color (cr, grid_strong);
-      cairo_arc (
-        cr,
-        widget->rect.x + hpadding +
-          x_offset * total_space,
-        widget->rect.y + 46 +
-          y_offset * total_height,
-        width / 2,
-        0, 2 * G_PI);
-      cairo_fill (cr);
-
-      zlfo_ui_theme_set_cr_color (cr, line);
-      cairo_set_line_width (cr, 3);
-      cairo_arc (
-        cr,
-        widget->rect.x + hpadding +
-          x_offset * total_space,
-        widget->rect.y + 46 +
-          y_offset * total_height,
-        width / 2,
-        0, 2 * G_PI);
-      cairo_stroke (cr);
-    }
 
 #if 0
   /* draw current position */
@@ -988,9 +994,8 @@ static void
 add_mid_region_bg (
   ZLfoUi * self)
 {
-  const int padding = 4;
   ZtkRect rect = {
-    LEFT_BTN_WIDTH + padding,
+    LEFT_BTN_WIDTH + 4,
     TOP_BTN_HEIGHT + 2,
     MID_REGION_WIDTH - 6, MID_REGION_HEIGHT };
   ZtkDrawingArea * da =
@@ -1001,6 +1006,130 @@ add_mid_region_bg (
   self->mid_region = (ZtkWidget *) da;
   ztk_app_add_widget (
     self->app, (ZtkWidget *) da, 0);
+}
+
+typedef struct NodeData
+{
+  /** Node index. */
+  int idx;
+
+  ZLfoUi *     zlfo_ui;
+} NodeData;
+
+static void
+node_update_cb (
+  ZtkWidget * w,
+  NodeData *  data)
+{
+  ZLfoUi * self = data->zlfo_ui;
+
+  /* set visibility */
+  if (data->idx < self->num_nodes)
+    {
+      ztk_widget_set_visible (w, 1);
+    }
+  else
+    {
+      ztk_widget_set_visible (w, 0);
+      return;
+    }
+
+  /* move if dragged */
+  if (w->state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      double dx = w->app->offset_press_x;
+      double dy = w->app->offset_press_y;
+      dx -= GRID_XSTART_GLOBAL;
+      dy -= GRID_YSTART_GLOBAL;
+
+      node_pos_setter (
+        self, (unsigned int) data->idx,
+        (float)
+        CLAMP (dx / GRID_WIDTH, 0.0, 1.0));
+      node_val_setter (
+        self, (unsigned int) data->idx,
+        1.f -
+          (float)
+          CLAMP (dy / GRID_HEIGHT, 0.0, 1.0));
+    }
+
+  double width = RANGE_POINT_WIDTH;
+  double total_space = 8 * GRID_SPACE;
+  double x_offset =
+    (double) self->nodes[data->idx][0];
+  double y_offset =
+    1.0 - (double) self->nodes[data->idx][1];
+  double total_height = GRID_HEIGHT;
+
+  /* set rectangle */
+  ZtkRect rect = {
+    (LEFT_BTN_WIDTH + 4 + GRID_HPADDING +
+      x_offset * total_space) - width / 2,
+    (TOP_BTN_HEIGHT + 2 + 46 +
+      y_offset * total_height) - width / 2,
+    width, width };
+  w->rect = rect;
+}
+
+static void
+node_draw_cb (
+  ZtkWidget * w,
+  cairo_t *   cr,
+  NodeData *  data)
+{
+  /*ZLfoUi * self = data->zlfo_ui;*/
+
+  double width = RANGE_POINT_WIDTH;
+
+  zlfo_ui_theme_set_cr_color (cr, grid_strong);
+  cairo_arc (
+    cr,
+    w->rect.x + width / 2,
+    w->rect.y + width / 2,
+    width / 2,
+    0, 2 * G_PI);
+  cairo_fill (cr);
+
+  zlfo_ui_theme_set_cr_color (cr, line);
+  cairo_set_line_width (cr, 3);
+  cairo_arc (
+    cr,
+    w->rect.x + width / 2,
+    w->rect.y + width / 2,
+    width / 2,
+    0, 2 * G_PI);
+  cairo_stroke (cr);
+}
+
+static void
+add_nodes (
+  ZLfoUi * self)
+{
+  for (int i = 0; i < 16; i++)
+    {
+      ZtkRect rect = {
+        0, 0, 0, 0 };
+      NodeData * data =
+        calloc (1, sizeof (NodeData));
+      data->idx = i;
+      data->zlfo_ui = self;
+      ZtkDrawingArea * da =
+        ztk_drawing_area_new (
+          &rect,
+          (ZtkWidgetGenericCallback)
+          node_update_cb,
+          (ZtkWidgetDrawCallback)
+          node_draw_cb,
+          NULL, data);
+      ZtkWidget * w = (ZtkWidget *) da;
+      self->mid_region = w;
+      ztk_widget_set_visible (w, 0);
+      self->node_widgets[i] = w;
+      ztk_app_add_widget (
+        self->app, w,
+        /* nodes on the left should be on top */
+        2 + (15 - i));
+    }
 }
 
 static void
@@ -1552,6 +1681,7 @@ create_ui (
   add_top_buttons (self);
   add_bot_buttons (self);
   add_mid_region_bg (self);
+  add_nodes (self);
   add_grid_controls (self);
   add_range (self);
   add_zrythm_icon (self);
@@ -1698,7 +1828,7 @@ port_event (
         }
 
       if (port_index >= ZLFO_NODE_1_POS &&
-          port_index <= ZLFO_NODE_16_VAL)
+          port_index <= ZLFO_NODE_16_CURVE)
         {
           unsigned int prop =
             (port_index - ZLFO_NODE_1_POS) % 3;

@@ -1,20 +1,20 @@
 /*
- * Copyright (C) 2019 Alexandros Theodotou <alex at zrythm dot org>
+ * Copyright (C) 2019-2020 Alexandros Theodotou <alex at zrythm dot org>
  *
- * This file is part of ZPlugins
+ * This file is part of ZLFO
  *
- * ZPlugins is free software: you can redistribute it and/or modify
+ * ZLFO is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
  *
- * ZPlugins is distributed in the hope that it will be useful,
+ * ZLFO is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU General Affero Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with ZLFO.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -28,6 +28,7 @@
 
 #include "config.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "lv2/atom/atom.h"
@@ -126,6 +127,7 @@ typedef enum PortIndex
   ZLFO_NODE_15_CURVE,
   ZLFO_NODE_16_POS,
   ZLFO_NODE_16_VAL,
+  ZLFO_NODE_16_CURVE,
   ZLFO_NUM_NODES,
   ZLFO_CV_OUT,
   NUM_ZLFO_PORTS,
@@ -153,6 +155,12 @@ typedef enum SyncRateType
   SYNC_TYPE_TRIPLET,
   NUM_SYNC_RATE_TYPES,
 } SyncRateType;
+
+typedef enum CurveAlgorithm
+{
+  CURVE_ALGORITHM_EXPONENT,
+  CURVE_ALGORITHM_SUPERELLIPSE,
+} CurveAlgorithm;
 
 static inline void
 map_uris (
@@ -214,5 +222,61 @@ log_error (
     }
   va_end (args);
 }
+
+/**
+ * Gets the y value for a node at the given X coord.
+ *
+ * See https://stackoverflow.com/questions/17623152/how-map-tween-a-number-based-on-a-dynamic-curve
+ * @param x X-coordinate.
+ * @param curviness Curviness variable (1.0 is
+ *   a straight line, 0.0 is full curved).
+ * @param start_higher Start at higher point.
+ */
+double
+get_y_normalized (
+  double x,
+  double curviness,
+  CurveAlgorithm algo,
+  int    start_higher,
+  int    curve_up);
+
+#ifdef pow
+double
+get_y_normalized (
+  double x,
+  double curviness,
+  CurveAlgorithm algo,
+  int    start_higher,
+  int    curve_up)
+{
+  if (!start_higher)
+    x = 1.0 - x;
+  if (curve_up)
+    x = 1.0 - x;
+
+  double val;
+  switch (algo)
+    {
+    case CURVE_ALGORITHM_EXPONENT:
+      val =
+        pow (x, curviness);
+      break;
+    case CURVE_ALGORITHM_SUPERELLIPSE:
+      val =
+        pow (
+          1.0 - pow (x, curviness),
+          (1.0 / curviness));
+      break;
+    }
+  if (curve_up)
+    {
+      val = 1.0 - val;
+    }
+  return val;
+
+  fprintf (
+    stderr, "This line should not be reached");
+}
+#endif
 
 #endif

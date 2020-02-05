@@ -197,7 +197,7 @@ int main (
           break;
         }
       if (i >= ZLFO_NODE_1_POS &&
-          i <= ZLFO_NODE_16_VAL)
+          i <= ZLFO_NODE_16_CURVE)
         {
           NodeProperty prop =
             (i - ZLFO_NODE_1_POS) % 3;
