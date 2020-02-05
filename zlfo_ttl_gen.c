@@ -129,13 +129,30 @@ int main (
           strcpy (name, "Trigger");
           is_trigger = 1;
           break;
+        case ZLFO_SYNC_RATE:
+          strcpy (symbol, "sync_rate");
+          strcpy (name, "Sync rate");
+          type = PORT_TYPE_INT;
+          defi = SYNC_1_4;
+          mini = 0;
+          maxi = SYNC_4_1;
+          break;
+        case ZLFO_SYNC_RATE_TYPE:
+          strcpy (symbol, "sync_rate_type");
+          strcpy (name, "Sync rate type");
+          type = PORT_TYPE_INT;
+          defi = SYNC_TYPE_NORMAL;
+          mini = 0;
+          maxi = SYNC_TYPE_TRIPLET;
+          break;
         case ZLFO_FREQ:
           strcpy (symbol, "freq");
           strcpy (name, "Frequency");
           strcpy (
             comment, "Frequency if free running");
-          def = 1.f;
-          max = 20.f;
+          min = MIN_FREQ;
+          def = DEF_FREQ;
+          max = MAX_FREQ;
           break;
         case ZLFO_SHIFT:
           strcpy (symbol, "shift");
@@ -276,13 +293,7 @@ int main (
     lv2:index %d ;\n\
     lv2:symbol \"cv_out\" ;\n\
     lv2:name \"CV output\" ;\n\
-  ] , [\n\
-    a lv2:OutputPort ,\n\
-      lv2:AudioPort ;\n\
-    lv2:index %d ;\n\
-    lv2:symbol \"audio_out\" ;\n\
-    lv2:name \"Audio output\" ;\n\
-  ] .\n\n", ZLFO_CV_OUT, ZLFO_AUDIO_OUT);
+  ] .\n\n", ZLFO_CV_OUT);
 
   /* write UI */
   fprintf (f,

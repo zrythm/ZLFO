@@ -45,6 +45,8 @@ typedef struct ZLFO
   const float * range_max;
   const float * step_mode;
   const float * freerun;
+  const float * sync_rate;
+  const float * sync_rate_type;
 
   /* outputs */
   float *       cv_out;
@@ -161,6 +163,12 @@ connect_port (
       break;
     case ZLFO_FREE_RUNNING:
       self->freerun = (const float *) data;
+      break;
+    case ZLFO_SYNC_RATE:
+      self->sync_rate = (const float *) data;
+      break;
+    case ZLFO_SYNC_RATE_TYPE:
+      self->sync_rate_type = (const float *) data;
       break;
 #if 0
     case ZLFO_SINE:

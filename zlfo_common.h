@@ -32,6 +32,11 @@
 #include "lv2/log/log.h"
 #include "lv2/urid/urid.h"
 
+/** Min, max and default frequency. */
+#define MIN_FREQ 0.1f
+#define DEF_FREQ 1.f
+#define MAX_FREQ 20.f
+
 typedef struct ZLfoUris
 {
   LV2_URID atom_eventTransfer;
@@ -55,6 +60,8 @@ typedef enum PortIndex
 
   ZLFO_GATE,
   ZLFO_TRIGGER,
+  ZLFO_SYNC_RATE,
+  ZLFO_SYNC_RATE_TYPE,
   ZLFO_FREQ,
   ZLFO_SHIFT,
   ZLFO_RANGE_MIN,
@@ -110,9 +117,31 @@ typedef enum PortIndex
   ZLFO_NODE_16_VAL,
   ZLFO_NUM_NODES,
   ZLFO_CV_OUT,
-  ZLFO_AUDIO_OUT,
   NUM_ZLFO_PORTS,
 } PortIndex;
+
+typedef enum SyncRate
+{
+  SYNC_1_128,
+  SYNC_1_64,
+  SYNC_1_32,
+  SYNC_1_16,
+  SYNC_1_8,
+  SYNC_1_4,
+  SYNC_1_2,
+  SYNC_1_1,
+  SYNC_2_1,
+  SYNC_4_1,
+  NUM_SYNC_RATES,
+} SyncRate;
+
+typedef enum SyncRateType
+{
+  SYNC_TYPE_NORMAL,
+  SYNC_TYPE_DOTTED,
+  SYNC_TYPE_TRIPLET,
+  NUM_SYNC_RATE_TYPES,
+} SyncRateType;
 
 static inline void
 map_uris (

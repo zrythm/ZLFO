@@ -88,6 +88,8 @@ typedef struct ZLfoUiTheme
   ZtkRsvgHandle * invert_svg;
   ZtkRsvgHandle * shift_svg;
 
+  ZtkRsvgHandle * down_arrow_svg;
+
 } ZLfoUiTheme;
 
 static ZLfoUiTheme zlfo_ui_theme;
@@ -153,6 +155,7 @@ zlfo_ui_theme_init (void)
   LOAD_SVG (vmirror_click);
   LOAD_SVG (invert);
   LOAD_SVG (shift);
+  LOAD_SVG (down_arrow);
 }
 
 /**

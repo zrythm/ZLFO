@@ -65,6 +65,10 @@
 #define MID_REGION_WIDTH 394
 #define MID_BTN_WIDTH 193
 #define MID_REGION_HEIGHT 180
+#define SYNC_RATE_BOX_WIDTH 46
+#define SYNC_RATE_BOX_HEIGHT 16
+#define FREQ_BOX_WIDTH 48
+#define ARROW_BTN_WIDTH 15
 
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
@@ -128,6 +132,8 @@ typedef struct ZLfoUi
   float            range_max;
   int              step_mode;
   int              freerun;
+  float            sync_rate;
+  float            sync_rate_type;
 
   LV2UI_Write_Function write;
   LV2UI_Controller controller;
@@ -176,6 +182,62 @@ typedef struct DrawData
      _self->controller, (uint32_t) idx, \
      sizeof (float), 0, &val)
 
+static float
+shift_control_getter (
+  ZtkControl * control,
+  ZLfoUi *     self)
+{
+  return self->shift;
+}
+
+static void
+shift_control_setter (
+  ZtkControl * control,
+  ZLfoUi *     self,
+  float        val)
+{
+  self->shift = val;
+  SEND_PORT_EVENT (self, ZLFO_SHIFT, self->shift);
+}
+
+static float
+sync_rate_getter (
+  ZtkControl * control,
+  ZLfoUi *     self)
+{
+  return self->sync_rate;
+}
+
+static void
+sync_rate_setter (
+  ZtkControl * control,
+  ZLfoUi *     self,
+  float        val)
+{
+  self->sync_rate = val;
+  SEND_PORT_EVENT (
+    self, ZLFO_SYNC_RATE, self->sync_rate);
+}
+
+static float
+freq_getter (
+  ZtkControl * control,
+  ZLfoUi *     self)
+{
+  return self->freq;
+}
+
+static void
+freq_setter (
+  ZtkControl * control,
+  ZLfoUi *     self,
+  float        val)
+{
+  self->freq = val;
+  SEND_PORT_EVENT (
+    self, ZLFO_FREQ, self->freq);
+}
+
 static void
 bg_draw_cb (
   ZtkWidget * widget,
@@ -220,7 +282,106 @@ on_btn_clicked (
   ZtkWidget * widget,
   DrawData *  data)
 {
-  ztk_message ("%s", "Button clicked!");
+  ztk_debug ("%s", "Button clicked!");
+
+  ZLfoUi * self = data->zlfo_ui;
+  switch (data->type)
+    {
+    case DATA_TYPE_BTN_TOP:
+      switch (data->val)
+        {
+        case TOP_BTN_CURVE:
+          self->step_mode = 0;
+          SEND_PORT_EVENT (
+            self, ZLFO_STEP_MODE, self->step_mode);
+          break;
+        case TOP_BTN_STEP:
+          self->step_mode = 1;
+          SEND_PORT_EVENT (
+            self, ZLFO_STEP_MODE, self->step_mode);
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_BOT:
+      switch (data->val)
+        {
+        case BOT_BTN_SYNC:
+          self->freerun = 0;
+          SEND_PORT_EVENT (
+            self, ZLFO_FREE_RUNNING, self->freerun);
+          break;
+        case BOT_BTN_FREE:
+          self->freerun = 1;
+          SEND_PORT_EVENT (
+            self, ZLFO_FREE_RUNNING, self->freerun);
+          break;
+        }
+      break;
+    default:
+      break;
+    }
+}
+
+typedef struct ComboBoxElement
+{
+  int           id;
+  char          label[600];
+  ZtkComboBox * combo;
+  ZLfoUi *      zlfo_ui;
+} ComboBoxElement;
+
+static void
+sync_rate_type_activate_cb (
+  ZtkWidget *       widget,
+  ComboBoxElement * el)
+{
+  ztk_debug (
+    "activate %p %d %s", el->combo,
+    el->id, el->label);
+  ZLfoUi * self = el->zlfo_ui;
+  self->sync_rate_type = (float) el->id;
+  SEND_PORT_EVENT (
+    self, ZLFO_SYNC_RATE_TYPE,
+    self->sync_rate_type);
+}
+
+static void
+on_sync_rate_type_clicked (
+  ZtkWidget * widget,
+  ZLfoUi *    self)
+{
+  ZtkComboBox * combo =
+    ztk_combo_box_new (
+      widget, 1, 0);
+  ztk_app_add_widget (
+    widget->app, (ZtkWidget *) combo, 100);
+
+  for (int i = 0; i < NUM_SYNC_RATE_TYPES; i++)
+    {
+      ComboBoxElement * el =
+        calloc (1, sizeof (ComboBoxElement));
+      el->id = i;
+      el->combo = combo;
+      el->zlfo_ui = self;
+      switch (i)
+        {
+        case SYNC_TYPE_NORMAL:
+          strcpy (el->label, "normal");
+          break;
+        case SYNC_TYPE_DOTTED:
+          strcpy (el->label, "dotted");
+          break;
+        case SYNC_TYPE_TRIPLET:
+          strcpy (el->label, "triplet");
+          break;
+        default:
+          break;
+        }
+      ztk_combo_box_add_text_element (
+        combo, el->label,
+        (ZtkWidgetActivateCallback)
+        sync_rate_type_activate_cb, el);
+    }
 }
 
 static void
@@ -371,6 +532,43 @@ top_and_bot_btn_bg_cb (
           w->rect.height + 3);
     }
   cairo_fill (cr);
+
+  if (data->type == DATA_TYPE_BTN_BOT)
+    {
+
+#define DRAW_SVG(caps,svg) \
+  case BOT_BTN_##caps: \
+  { \
+    int hpadding = 0; \
+    int vpadding = 0; \
+    ZtkRect rect = { \
+      (w->rect.x + hpadding), \
+      w->rect.y + vpadding, \
+      w->rect.width - hpadding * 2, \
+      w->rect.height - vpadding * 2 }; \
+    if (data->val == BOT_BTN_SYNC) \
+      { \
+        rect.x -=  \
+          (SYNC_RATE_BOX_WIDTH + \
+             ARROW_BTN_WIDTH) / 2.0; \
+      } \
+    else if (data->val == BOT_BTN_FREE) \
+      { \
+        rect.x -= FREQ_BOX_WIDTH / 2.0; \
+      } \
+    ztk_rsvg_draw ( \
+      zlfo_ui_theme.svg##_svg, cr, &rect); \
+  } \
+      break
+
+      switch (data->val)
+        {
+          DRAW_SVG (SYNC, sync);
+          DRAW_SVG (FREE, freeb);
+        }
+
+#undef DRAW_SVG
+    }
 }
 
 static void
@@ -432,6 +630,154 @@ add_top_buttons (
 }
 
 static void
+sync_rate_control_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  /*ZtkControl * ctrl = (ZtkControl *) widget;*/
+
+  /* draw black bg */
+  zlfo_ui_theme_set_cr_color (cr, bg);
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+
+  /* draw label */
+  int val = (int) self->sync_rate;
+  char lbl[12] = "\0";
+  switch (val)
+    {
+    case SYNC_1_128:
+      strcpy (lbl, "1 / 128");
+      break;
+    case SYNC_1_64:
+      strcpy (lbl, "1 / 64");
+      break;
+    case SYNC_1_32:
+      strcpy (lbl, "1 / 32");
+      break;
+    case SYNC_1_16:
+      strcpy (lbl, "1 / 16");
+      break;
+    case SYNC_1_8:
+      strcpy (lbl, "1 / 8");
+      break;
+    case SYNC_1_4:
+      strcpy (lbl, "1 / 4");
+      break;
+    case SYNC_1_2:
+      strcpy (lbl, "1 / 2");
+      break;
+    case SYNC_1_1:
+      strcpy (lbl, "1 / 1");
+      break;
+    case SYNC_2_1:
+      strcpy (lbl, "2 / 1");
+      break;
+    case SYNC_4_1:
+      strcpy (lbl, "4 / 1");
+      break;
+    }
+  switch ((int) self->sync_rate_type)
+    {
+    case SYNC_TYPE_DOTTED:
+      strcat (lbl, ".");
+      break;
+    case SYNC_TYPE_TRIPLET:
+      strcat (lbl, "t");
+      break;
+    default:
+      break;
+    }
+
+  /* Draw label */
+  cairo_text_extents_t extents;
+  cairo_set_font_size (cr, 10);
+  cairo_text_extents (cr, lbl, &extents);
+  cairo_move_to (
+    cr,
+    (widget->rect.x + widget->rect.width / 2.0) -
+      (extents.width / 2.0 + 1.0),
+    (widget->rect.y + widget->rect.height) -
+      widget->rect.height / 2.0 +
+        extents.height / 2.0);
+  cairo_set_source_rgba (cr, 1, 1, 1, 1);
+  cairo_show_text (cr, lbl);
+}
+
+static void
+freq_control_draw_cb (
+  ZtkWidget * widget,
+  cairo_t *   cr,
+  ZLfoUi *    self)
+{
+  /* draw black bg */
+  zlfo_ui_theme_set_cr_color (cr, bg);
+  cairo_rectangle (
+    cr, widget->rect.x, widget->rect.y,
+    widget->rect.width, widget->rect.height);
+  cairo_fill (cr);
+
+  /* draw label */
+  char lbl[12];
+  sprintf (lbl, "%.1f Hz", (double) self->freq);
+
+  /* Draw label */
+  cairo_text_extents_t extents;
+  cairo_set_font_size (cr, 10);
+  cairo_text_extents (cr, lbl, &extents);
+  cairo_move_to (
+    cr,
+    (widget->rect.x + widget->rect.width / 2.0) -
+      (extents.width / 2.0 + 1.0),
+    (widget->rect.y + widget->rect.height) -
+      widget->rect.height / 2.0 +
+        extents.height / 2.0);
+  cairo_set_source_rgba (cr, 1, 1, 1, 1);
+  cairo_show_text (cr, lbl);
+}
+
+static int
+sync_rate_control_btn_event_cb (
+  ZtkWidget *             w,
+  const PuglEventButton * btn,
+  ZLfoUi *                self)
+{
+  ZtkWidgetState state = w->state;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      if (ztk_widget_is_hit (w, btn->x, btn->y))
+        {
+          self->freerun = 0;
+          SEND_PORT_EVENT (
+            self, ZLFO_FREE_RUNNING, self->freerun);
+        }
+    }
+  return 1;
+}
+
+static int
+freq_control_btn_event_cb (
+  ZtkWidget *             w,
+  const PuglEventButton * btn,
+  ZLfoUi *                self)
+{
+  ZtkWidgetState state = w->state;
+  if (state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      if (ztk_widget_is_hit (w, btn->x, btn->y))
+        {
+          self->freerun = 1;
+          SEND_PORT_EVENT (
+            self, ZLFO_FREE_RUNNING, self->freerun);
+        }
+    }
+  return 1;
+}
+
+static void
 add_bot_buttons (
   ZLfoUi * self)
 {
@@ -464,30 +810,84 @@ add_bot_buttons (
         (ZtkButtonToggledGetter)
         get_button_active);
 
-#define MAKE_BUTTON_SVGED(caps,lowercase) \
-  case BOT_BTN_##caps: \
-    { \
-      ztk_button_make_svged (\
-        btn, hpadding, vpadding, \
-        zlfo_ui_theme.lowercase##_svg, \
-        zlfo_ui_theme.lowercase##_svg, \
-        zlfo_ui_theme.lowercase##_svg); \
-    } \
-    break
-
-      int hpadding = 6;
-      int vpadding = 0;
-      switch (data->val)
-        {
-          MAKE_BUTTON_SVGED (SYNC, sync);
-          MAKE_BUTTON_SVGED (FREE, freeb);
-        }
-
-#undef MAKE_BUTTON_SVGED
-
       ztk_app_add_widget (
         self->app, (ZtkWidget *) btn, 1);
     }
+
+  /* add sync rate control */
+  ZtkRect rect = {
+    (start + padding + width / 2) -
+      ARROW_BTN_WIDTH / 2,
+    MID_REGION_HEIGHT + TOP_BTN_HEIGHT + 14,
+    SYNC_RATE_BOX_WIDTH, SYNC_RATE_BOX_HEIGHT };
+  ZtkControl * control =
+    ztk_control_new (
+      &rect,
+      (ZtkControlGetter) sync_rate_getter,
+      (ZtkControlSetter) sync_rate_setter,
+      (ZtkWidgetDrawCallback)
+      sync_rate_control_draw_cb,
+      ZTK_CTRL_DRAG_VERTICAL,
+      self, 0.f, (float) (NUM_SYNC_RATES - 1),
+      0.0f);
+  ((ZtkWidget *) control)->user_data = self;
+  control->sensitivity = 0.008f;
+  ((ZtkWidget *) control)->button_event_cb =
+    (ZtkWidgetButtonEventCallback)
+    sync_rate_control_btn_event_cb;
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) control, 2);
+
+  /* add sync rate type dropdown */
+  rect.x =
+    (start + padding + width / 2 +
+       SYNC_RATE_BOX_WIDTH) -
+    (ARROW_BTN_WIDTH / 2 + 1);
+  rect.y =
+    MID_REGION_HEIGHT + TOP_BTN_HEIGHT + 14;
+  rect.width = ARROW_BTN_WIDTH;
+  rect.height = SYNC_RATE_BOX_HEIGHT;
+  ZtkButton * btn =
+    ztk_button_new (
+      &rect,
+      (ZtkWidgetActivateCallback)
+      on_sync_rate_type_clicked, self);
+  ztk_button_set_background_colors (
+    btn,
+    &zlfo_ui_theme.bg,
+    &zlfo_ui_theme.button_hover,
+    &zlfo_ui_theme.left_button_click);
+  ztk_button_make_svged (
+    btn, 3, 0,
+    zlfo_ui_theme.down_arrow_svg,
+    zlfo_ui_theme.down_arrow_svg,
+    zlfo_ui_theme.down_arrow_svg);
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) btn, 4);
+
+  /* add frequency control */
+  rect.x =
+    start + padding + width + padding + width / 2;
+  rect.y =
+    MID_REGION_HEIGHT + TOP_BTN_HEIGHT + 14;
+  rect.width = FREQ_BOX_WIDTH;
+  rect.height = SYNC_RATE_BOX_HEIGHT;
+  control =
+    ztk_control_new (
+      &rect,
+      (ZtkControlGetter) freq_getter,
+      (ZtkControlSetter) freq_setter,
+      (ZtkWidgetDrawCallback)
+      freq_control_draw_cb,
+      ZTK_CTRL_DRAG_VERTICAL,
+      self, MIN_FREQ, MAX_FREQ, MIN_FREQ);
+  ((ZtkWidget *) control)->user_data = self;
+  control->sensitivity = 0.008f;
+  ((ZtkWidget *) control)->button_event_cb =
+    (ZtkWidgetButtonEventCallback)
+    freq_control_btn_event_cb;
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) control, 2);
 }
 
 static void
@@ -708,24 +1108,6 @@ grid_btn_draw_cb (
 #undef DRAW_SVG
 }
 
-static float
-shift_control_getter (
-  ZtkControl * control,
-  ZLfoUi *     self)
-{
-  return self->shift;
-}
-
-static void
-shift_control_setter (
-  ZtkControl * control,
-  ZLfoUi *     self,
-  float        val)
-{
-  self->shift = val;
-  SEND_PORT_EVENT (self, ZLFO_SHIFT, self->shift);
-}
-
 /**
  * Macro to get real value.
  */
@@ -864,56 +1246,6 @@ grid_lbl_draw_cb (
 #undef DRAW_SVG
 }
 
-typedef struct TestStruct
-{
-  int id;
-  char label[600];
-  ZtkComboBox * combo;
-} TestStruct;
-
-static void
-activate_cb (
-  ZtkWidget *  widget,
-  TestStruct * test)
-{
-  ztk_message (
-    "activate %p %d %s", test->combo,
-    test->id, test->label);
-}
-
-static void
-button_event_cb (
-  ZtkWidget * widget,
-  const PuglEventButton * btn,
-  ZLfoUi * self)
-{
-  if ((((PuglEvent *) btn)->type !=
-         PUGL_BUTTON_RELEASE) ||
-      (!ztk_widget_is_hit (widget, btn->x, btn->y)))
-    return;
-
-  ZtkComboBox * combo =
-    ztk_combo_box_new (
-      widget, 0, 0);
-  ztk_app_add_widget (
-    widget->app, (ZtkWidget *) combo, 100);
-
-  for (int i = 0; i < 90; i++)
-    {
-      TestStruct * test =
-        calloc (1, sizeof (TestStruct));
-      test->id = i;
-      test->combo = combo;
-      sprintf (test->label, "Test %d", i);
-      ztk_combo_box_add_text_element (
-        combo, test->label,
-        (ZtkWidgetActivateCallback) activate_cb,
-        test);
-      if (i % 3 == 0)
-        ztk_combo_box_add_separator (combo);
-    }
-}
-
 static void
 add_grid_controls (
   ZLfoUi * self)
@@ -961,10 +1293,6 @@ add_grid_controls (
           NULL, data);
       ztk_app_add_widget (
         self->app, (ZtkWidget *) da, 1);
-
-      ((ZtkWidget *) da)->button_event_cb =
-        (ZtkWidgetButtonEventCallback)
-        button_event_cb;
     }
 
   /* add shift control */
@@ -1056,6 +1384,10 @@ instantiate (
   ZLfoUi * self = calloc (1, sizeof (ZLfoUi));
   self->write = write_function;
   self->controller = controller;
+
+#ifndef RELEASE
+  ztk_log_set_level (ZTK_LOG_LEVEL_DEBUG);
+#endif
 
 #define HAVE_FEATURE(x) \
   (!strcmp(features[i]->URI, x))
@@ -1162,6 +1494,14 @@ port_event (
         case ZLFO_FREE_RUNNING:
           self->freerun =
             (int) * (const float *) buffer;
+          break;
+        case ZLFO_SYNC_RATE:
+          self->sync_rate =
+            * (const float *) buffer;
+          break;
+        case ZLFO_SYNC_RATE_TYPE:
+          self->sync_rate_type =
+            * (const float *) buffer;
           break;
         default:
           break;
