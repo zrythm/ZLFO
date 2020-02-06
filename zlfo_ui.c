@@ -230,9 +230,12 @@ typedef struct DrawData
 } DrawData;
 
 #define SEND_PORT_EVENT(_self,idx,val) \
-  _self->write ( \
-     _self->controller, (uint32_t) idx, \
-     sizeof (float), 0, &val)
+  { \
+    float fval = (float) val; \
+    _self->write ( \
+       _self->controller, (uint32_t) idx, \
+       sizeof (float), 0, &fval); \
+  }
 
 #define GENERIC_GETTER(sc) \
 static float \
@@ -431,6 +434,21 @@ on_btn_clicked (
           self->freerun = 1;
           SEND_PORT_EVENT (
             self, ZLFO_FREE_RUNNING, self->freerun);
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_GRID:
+      switch (data->val)
+        {
+        case GRID_BTN_HMIRROR:
+          self->hinvert = !self->hinvert;
+          SEND_PORT_EVENT (
+            self, ZLFO_HINVERT, self->hinvert);
+          break;
+        case GRID_BTN_VMIRROR:
+          self->vinvert = !self->vinvert;
+          SEND_PORT_EVENT (
+            self, ZLFO_VINVERT, self->vinvert);
           break;
         }
       break;
@@ -1579,67 +1597,6 @@ add_zrythm_icon (
     self->app, (ZtkWidget *) da, 0);
 }
 
-static void
-grid_btn_draw_cb (
-  ZtkWidget * widget,
-  cairo_t *   cr,
-  DrawData *  data)
-{
-  /* set background */
-  ZtkWidgetState state = widget->state;
-  int hover = 0;
-  int pressed = 0;
-  if (state & ZTK_WIDGET_STATE_PRESSED)
-    {
-      pressed = 1;
-    }
-  else if (state & ZTK_WIDGET_STATE_HOVERED)
-    {
-      hover = 1;
-    }
-
-  /* draw svgs */
-#define DRAW_SVG(caps,lowercase) \
-  case GRID_BTN_##caps: \
-    { \
-      ZtkRect rect = { \
-        widget->rect.x, \
-        widget->rect.y, \
-        widget->rect.width, \
-        widget->rect.height }; \
-      if (pressed) \
-        { \
-          ztk_rsvg_draw ( \
-            zlfo_ui_theme.lowercase##_click_svg, \
-            cr, &rect); \
-        } \
-      else if (hover) \
-        { \
-          ztk_rsvg_draw ( \
-            zlfo_ui_theme.lowercase##_hover_svg, \
-            cr, &rect); \
-        } \
-      else \
-        { \
-          ztk_rsvg_draw ( \
-            zlfo_ui_theme.lowercase##_svg, \
-            cr, &rect); \
-        } \
-    } \
-    break
-
-  switch (data->val)
-    {
-      DRAW_SVG (SNAP, grid_snap);
-      DRAW_SVG (HMIRROR, hmirror);
-      DRAW_SVG (VMIRROR, vmirror);
-    default:
-      break;
-    }
-
-#undef DRAW_SVG
-}
-
 /**
  * Macro to get real value.
  */
@@ -1818,13 +1775,46 @@ add_grid_controls (
       data->val = i;
       data->type = DATA_TYPE_BTN_GRID;
       data->zlfo_ui = self;
-      ZtkDrawingArea * da =
-        ztk_drawing_area_new (
-          &rect, NULL,
-          (ZtkWidgetDrawCallback) grid_btn_draw_cb,
-          NULL, data);
+      ZtkButton * btn =
+        ztk_button_new (
+          &rect,
+          (ZtkWidgetActivateCallback)
+          on_btn_clicked, data);
+      ztk_button_set_background_colors (
+        btn,
+        &zlfo_ui_theme.bg,
+        &zlfo_ui_theme.button_hover,
+        &zlfo_ui_theme.left_button_click);
+      switch (i)
+        {
+        case GRID_BTN_HMIRROR:
+          ztk_button_make_svged (
+            btn, 0, 0,
+            zlfo_ui_theme.hmirror_svg,
+            zlfo_ui_theme.hmirror_hover_svg,
+            zlfo_ui_theme.hmirror_click_svg);
+          break;
+        case GRID_BTN_VMIRROR:
+          ztk_button_make_svged (
+            btn, 0, 0,
+            zlfo_ui_theme.vmirror_svg,
+            zlfo_ui_theme.vmirror_hover_svg,
+            zlfo_ui_theme.vmirror_click_svg);
+          break;
+        case GRID_BTN_SNAP:
+          ztk_button_make_svged (
+            btn, 0, 0,
+            zlfo_ui_theme.grid_snap_svg,
+            zlfo_ui_theme.grid_snap_hover_svg,
+            zlfo_ui_theme.grid_snap_click_svg);
+          break;
+        }
+      ztk_button_make_toggled (
+        btn,
+        (ZtkButtonToggledGetter)
+        get_button_active);
       ztk_app_add_widget (
-        self->app, (ZtkWidget *) da, 4);
+        self->app, (ZtkWidget *) btn, 4);
     }
 
   /* add shift control */

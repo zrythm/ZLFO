@@ -283,17 +283,20 @@ recalc_multipliers (
    * ? radians =
    *   (2 * PI) radians per LFO cycle *
    *   F cycles per second *
-   *   1 / SR samples per second *
+   *   (1 / SR samples per second) *
    *   X samples
    *
-   * Then the LFO value is the sine of (radians % (2 * PI)).
+   * Then the LFO value is the sine of
+   * (radians % (2 * PI)).
    *
-   * This multiplier handles the part known by now and the
-   * first part of the calculation should become:
+   * This multiplier handles the part known by now
+   * and the first part of the calculation should
+   * become:
    * ? radians = X samples * sine_multiplier
    */
   self->sine_multiplier =
-    (*self->freq / (float) self->samplerate) * 2.f * PI;
+    (*self->freq / (float) self->samplerate) *
+    2.f * PI;
 
   /*
    * F = frequency
@@ -346,23 +349,82 @@ run (
       recalc_multipliers (self);
     }
 
+  float max_range =
+    MAX (*self->range_max, *self->range_min);
+  float min_range =
+    MIN (*self->range_max, *self->range_min);
+  float range = max_range - min_range;
+
   for (uint32_t i = 0; i < n_samples; i++)
     {
-      /* handle sine */
+      /* invert horizontally */
+      long shifted_current_sample =
+        self->current_sample;
+      if (*self->hinvert >= 0.01f)
+        {
+          shifted_current_sample =
+            self->period_size - self->current_sample;
+          if (shifted_current_sample ==
+                self->period_size)
+            shifted_current_sample = 0;
+        }
+
+      /* shift */
+      if (*self->shift >= 0.5f)
+        {
+          /* add the samples to shift from 0 to
+           * (half the period width) */
+          shifted_current_sample +=
+            (long)
+            /* shift ratio */
+            (((*self->shift - 0.5f) * 2.f) *
+            /* half a period */
+            (self->period_size / 2.f));
+
+          /* readjust */
+          shifted_current_sample =
+            shifted_current_sample %
+              self->period_size;
+        }
+      else
+        {
+          /* subtract the samples to shift between
+           * 0 and (half the period width) */
+          shifted_current_sample -=
+            (long)
+            /* shift ratio */
+            ((*self->shift * 2.f) *
+            /* half a period */
+            (self->period_size / 2.f));
+
+          /* readjust */
+          while (shifted_current_sample < 0)
+            {
+              shifted_current_sample +=
+                self->period_size;
+            }
+        }
+
+      /* calculate sine */
       self->sine_out[i] =
         sinf (
-          ((float) self->current_sample *
+          ((float) shifted_current_sample *
               self->sine_multiplier));
 
-      /* handle saw up */
+      /* calculate saw */
       self->saw_out[i] =
         fmodf (
-          (float) self->current_sample *
-            self->saw_up_multiplier, 1.f) * 2.f - 1.f;
+          (float) shifted_current_sample *
+            self->saw_up_multiplier, 1.f) * 2.f -
+        1.f;
+      self->saw_out[i] = - self->saw_out[i];
 
       /* triangle can be calculated based on the
        * saw */
-      if (self->saw_out[i] < 0.f)
+      if (self->saw_out[i] > 0.f)
+        self->triangle_out[i] =
+          ((- self->saw_out[i]) + 1.f) * 2.f - 1.f;
+      else
         self->triangle_out[i] =
           (self->saw_out[i] + 1.f) * 2.f - 1.f;
 
@@ -375,6 +437,37 @@ run (
       /*self->random[i] =*/
         /*((float) rand () / (float) ((float) RAND_MAX / 2.f)) -*/
           /*1.f;*/
+
+      /* invert vertically */
+      if (*self->vinvert >= 0.01f)
+        {
+#define INVERT(x) \
+  self->x##_out[i] = - self->x##_out[i]
+
+          INVERT (sine);
+          INVERT (saw);
+          INVERT (triangle);
+          INVERT (square);
+          INVERT (rnd);
+          INVERT (custom);
+
+#undef INVERT
+        }
+
+      /* adjust range */
+#define ADJUST_RANGE(x) \
+  self->x##_out[i] = \
+    min_range + \
+    ((self->x##_out[i] + 1.f) / 2.f) * range
+
+      ADJUST_RANGE (sine);
+      ADJUST_RANGE (saw);
+      ADJUST_RANGE (triangle);
+      ADJUST_RANGE (square);
+      ADJUST_RANGE (rnd);
+      ADJUST_RANGE (custom);
+
+#undef ADJUST_RANGE
 
       self->current_sample++;
       if (self->current_sample ==

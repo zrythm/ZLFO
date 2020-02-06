@@ -286,4 +286,16 @@ get_y_normalized (
 }
 #endif
 
+#ifndef MAX
+# define MAX(x,y) (x > y ? x : y)
+#endif
+
+#ifndef MIN
+# define MIN(x,y) (x < y ? x : y)
+#endif
+
+#ifndef CLAMP
+# define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+#endif
+
 #endif
