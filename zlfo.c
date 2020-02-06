@@ -47,11 +47,18 @@ typedef struct ZLFO
   const float * freerun;
   const float * sync_rate;
   const float * sync_rate_type;
+  const float * hinvert;
+  const float * vinvert;
   const float * nodes[ZLFO_NUM_NODES][3];
 
   /* outputs */
   float *       cv_out;
-  float *       audio_out;
+  float *       sine_out;
+  float *       saw_out;
+  float *       triangle_out;
+  float *       square_out;
+  float *       rnd_out;
+  float *       custom_out;
 
   /** Frequency during the last run. */
   float         last_freq;
@@ -182,26 +189,30 @@ connect_port (
     case ZLFO_SYNC_RATE_TYPE:
       self->sync_rate_type = (const float *) data;
       break;
-#if 0
-    case ZLFO_SINE:
-      self->sine = (float *) data;
+    case ZLFO_HINVERT:
+      self->hinvert = (const float *) data;
       break;
-    case ZLFO_SAW_UP:
-      self->saw_up = (float *) data;
+    case ZLFO_VINVERT:
+      self->vinvert = (const float *) data;
       break;
-    case ZLFO_SAW_DOWN:
-      self->saw_down = (float *) data;
+    case ZLFO_SINE_OUT:
+      self->sine_out = (float *) data;
       break;
-    case ZLFO_TRIANGLE:
-      self->triangle = (float *) data;
+    case ZLFO_SAW_OUT:
+      self->saw_out = (float *) data;
       break;
-    case ZLFO_SQUARE:
-      self->square = (float *) data;
+    case ZLFO_TRIANGLE_OUT:
+      self->triangle_out = (float *) data;
       break;
-    case ZLFO_RANDOM:
-      self->random = (float *) data;
+    case ZLFO_SQUARE_OUT:
+      self->square_out = (float *) data;
       break;
-#endif
+    case ZLFO_RND_OUT:
+      self->rnd_out = (float *) data;
+      break;
+    case ZLFO_CUSTOM_OUT:
+      self->custom_out = (float *) data;
+      break;
     default:
       break;
     }
@@ -216,6 +227,47 @@ connect_port (
       self->nodes[node_id][prop] =
         (const float *) data;
     }
+}
+
+static void
+send_messages_to_ui (
+  ZLFO * self)
+{
+  /* set up forge to write directly to notify
+   * output port */
+  const uint32_t notify_capacity =
+    self->notify->atom.size;
+  lv2_atom_forge_set_buffer (
+    &self->forge, (uint8_t*) self->notify,
+    notify_capacity);
+
+  /* start a sequence in the notify output port */
+  lv2_atom_forge_sequence_head (
+    &self->forge, &self->notify_frame, 0);
+
+  /* forge container object of type "ui_state" */
+  lv2_atom_forge_frame_time (&self->forge, 0);
+  LV2_Atom_Forge_Frame frame;
+  lv2_atom_forge_object (
+    &self->forge, &frame, 1,
+    self->uris.ui_state);
+
+  /* append property for current sample */
+  lv2_atom_forge_key (
+    &self->forge,
+    self->uris.ui_state_current_sample);
+  lv2_atom_forge_long (
+    &self->forge, self->current_sample);
+
+  /* append samplerate */
+  lv2_atom_forge_key (
+    &self->forge,
+    self->uris.ui_state_samplerate);
+  lv2_atom_forge_double (
+    &self->forge, self->samplerate);
+
+  /* finish object */
+  lv2_atom_forge_pop (&self->forge, &frame);
 }
 
 static void
@@ -281,47 +333,6 @@ activate (
 }
 
 static void
-send_messages_to_ui (
-  ZLFO * self)
-{
-  /* set up forge to write directly to notify
-   * output port */
-  const uint32_t notify_capacity =
-    self->notify->atom.size;
-  lv2_atom_forge_set_buffer (
-    &self->forge, (uint8_t*) self->notify,
-    notify_capacity);
-
-  /* start a sequence in the notify output port */
-  lv2_atom_forge_sequence_head (
-    &self->forge, &self->notify_frame, 0);
-
-  /* forge container object of type "ui_state" */
-  lv2_atom_forge_frame_time (&self->forge, 0);
-  LV2_Atom_Forge_Frame frame;
-  lv2_atom_forge_object (
-    &self->forge, &frame, 1,
-    self->uris.ui_state);
-
-  /* append property for current sample */
-  lv2_atom_forge_key (
-    &self->forge,
-    self->uris.ui_state_current_sample);
-  lv2_atom_forge_long (
-    &self->forge, self->current_sample);
-
-  /* append samplerate */
-  lv2_atom_forge_key (
-    &self->forge,
-    self->uris.ui_state_samplerate);
-  lv2_atom_forge_double (
-    &self->forge, self->samplerate);
-
-  /* finish object */
-  lv2_atom_forge_pop (&self->forge, &frame);
-}
-
-static void
 run (
   LV2_Handle instance,
   uint32_t n_samples)
@@ -337,40 +348,33 @@ run (
 
   for (uint32_t i = 0; i < n_samples; i++)
     {
-#if 0
       /* handle sine */
-      self->sine[i] =
+      self->sine_out[i] =
         sinf (
-          ((float) self->samples_processed *
+          ((float) self->current_sample *
               self->sine_multiplier));
 
       /* handle saw up */
-      self->saw_up[i] =
+      self->saw_out[i] =
         fmodf (
-          (float) self->samples_processed *
+          (float) self->current_sample *
             self->saw_up_multiplier, 1.f) * 2.f - 1.f;
 
-      /* saw down is the opposite of saw up */
-      self->saw_down[i] = - self->saw_up[i];
-
-      /* triangle can be calculated based on the saw */
-      if (self->saw_up[i] < 0.f)
-        self->triangle[i] =
-          (self->saw_up[i] + 1.f) * 2.f - 1.f;
-      else
-        self->triangle[i] =
-          (self->saw_down[i] + 1.f) * 2.f - 1.f;
+      /* triangle can be calculated based on the
+       * saw */
+      if (self->saw_out[i] < 0.f)
+        self->triangle_out[i] =
+          (self->saw_out[i] + 1.f) * 2.f - 1.f;
 
       /* square too */
-      self->square[i] =
-        self->saw_up[i] < 0.f ? -1.f : 1.f;
+      self->square_out[i] =
+        self->saw_out[i] < 0.f ? -1.f : 1.f;
 
       /* TODO */
-      self->random[i] = 0.f;
+      self->rnd_out[i] = 0.f;
       /*self->random[i] =*/
         /*((float) rand () / (float) ((float) RAND_MAX / 2.f)) -*/
           /*1.f;*/
-#endif
 
       self->current_sample++;
       if (self->current_sample ==

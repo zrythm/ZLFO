@@ -185,6 +185,18 @@ int main (
           type = PORT_TYPE_TOGGLE;
           def = 1.f;
           break;
+        case ZLFO_HINVERT:
+          strcpy (symbol, "hinvert");
+          strcpy (name, "H invert");
+          strcpy (comment, "Horizontal invert");
+          type = PORT_TYPE_TOGGLE;
+          break;
+        case ZLFO_VINVERT:
+          strcpy (symbol, "vinvert");
+          strcpy (name, "V invert");
+          strcpy (comment, "Vertical invert");
+          type = PORT_TYPE_TOGGLE;
+          break;
         case ZLFO_NUM_NODES:
           strcpy (symbol, "num_nodes");
           strcpy (name, "Node count");
@@ -286,14 +298,46 @@ int main (
 "  ] , [\n");
     }
 
-  /* write cv out and audio out */
+  /* write cv outs */
   fprintf (f,
 "    a lv2:OutputPort ,\n\
       lv2:CVPort ;\n\
     lv2:index %d ;\n\
-    lv2:symbol \"cv_out\" ;\n\
-    lv2:name \"CV output\" ;\n\
-  ] .\n\n", ZLFO_CV_OUT);
+    lv2:symbol \"sine_out\" ;\n\
+    lv2:name \"Sine\" ;\n\
+  ] , [\n\
+    a lv2:OutputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index %d ;\n\
+    lv2:symbol \"triangle_out\" ;\n\
+    lv2:name \"Triangle\" ;\n\
+  ] , [\n\
+    a lv2:OutputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index %d ;\n\
+    lv2:symbol \"saw_out\" ;\n\
+    lv2:name \"Saw\" ;\n\
+  ] , [\n\
+    a lv2:OutputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index %d ;\n\
+    lv2:symbol \"square_out\" ;\n\
+    lv2:name \"Square\" ;\n\
+  ] , [\n\
+    a lv2:OutputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index %d ;\n\
+    lv2:symbol \"rnd_out\" ;\n\
+    lv2:name \"Noise\" ;\n\
+  ] , [\n\
+    a lv2:OutputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index %d ;\n\
+    lv2:symbol \"custom_out\" ;\n\
+    lv2:name \"Custom\" ;\n\
+  ] .\n\n",
+    ZLFO_SINE_OUT, ZLFO_TRIANGLE_OUT, ZLFO_SAW_OUT,
+    ZLFO_SQUARE_OUT, ZLFO_RND_OUT, ZLFO_CUSTOM_OUT);
 
   /* write UI */
   fprintf (f,

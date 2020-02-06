@@ -142,6 +142,19 @@ typedef enum DrawDataType
   DATA_TYPE_LBL,
 } DrawDataType;
 
+/**
+ * Wave mode for editing.
+ */
+typedef enum WaveMode
+{
+  WAVE_SINE,
+  WAVE_SAW,
+  WAVE_TRIANGLE,
+  WAVE_SQUARE,
+  WAVE_RND,
+  WAVE_CUSTOM,
+} WaveMode;
+
 typedef struct ZLfoUi
 {
   /** Port values. */
@@ -151,6 +164,8 @@ typedef struct ZLfoUi
   float            range_max;
   int              step_mode;
   int              freerun;
+  int              hinvert;
+  int              vinvert;
   float            sync_rate;
   float            sync_rate_type;
   float            nodes[16][3];
@@ -159,6 +174,7 @@ typedef struct ZLfoUi
   /** Non-port values */
   long             current_sample;
   double           samplerate;
+  WaveMode         wave_mode;
 
   LV2UI_Write_Function write;
   LV2UI_Controller controller;
@@ -346,6 +362,63 @@ on_btn_clicked (
           break;
         }
       break;
+    case DATA_TYPE_BTN_LEFT:
+      switch (data->val)
+        {
+        case LEFT_BTN_SINE:
+          if (self->wave_mode == WAVE_SINE)
+            {
+              self->wave_mode = WAVE_CUSTOM;
+            }
+          else
+            {
+              self->wave_mode = WAVE_SINE;
+            }
+          break;
+        case LEFT_BTN_SAW:
+          if (self->wave_mode == WAVE_SAW)
+            {
+              self->wave_mode = WAVE_CUSTOM;
+            }
+          else
+            {
+              self->wave_mode = WAVE_SAW;
+            }
+          break;
+        case LEFT_BTN_TRIANGLE:
+          if (self->wave_mode == WAVE_TRIANGLE)
+            {
+              self->wave_mode = WAVE_CUSTOM;
+            }
+          else
+            {
+              self->wave_mode = WAVE_TRIANGLE;
+            }
+          break;
+        case LEFT_BTN_RND:
+          if (self->wave_mode == WAVE_RND)
+            {
+              self->wave_mode = WAVE_CUSTOM;
+            }
+          else
+            {
+              self->wave_mode = WAVE_RND;
+            }
+          break;
+        case LEFT_BTN_SQUARE:
+          if (self->wave_mode == WAVE_SQUARE)
+            {
+              self->wave_mode = WAVE_CUSTOM;
+            }
+          else
+            {
+              self->wave_mode = WAVE_SQUARE;
+            }
+          break;
+        default:
+          break;
+        }
+      break;
     case DATA_TYPE_BTN_BOT:
       switch (data->val)
         {
@@ -428,6 +501,77 @@ on_sync_rate_type_clicked (
     }
 }
 
+static int
+get_button_active (
+  ZtkButton * btn,
+  DrawData *  data)
+{
+  ZLfoUi * self = data->zlfo_ui;
+
+  switch (data->type)
+    {
+    case DATA_TYPE_BTN_TOP:
+      switch (data->val)
+        {
+        case TOP_BTN_CURVE:
+          return !self->step_mode;
+          break;
+        case TOP_BTN_STEP:
+          return self->step_mode;
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_LEFT:
+      switch (data->val)
+        {
+        case LEFT_BTN_SINE:
+          return self->wave_mode == WAVE_SINE;
+          break;
+        case LEFT_BTN_TRIANGLE:
+          return self->wave_mode == WAVE_TRIANGLE;
+          break;
+        case LEFT_BTN_SAW:
+          return self->wave_mode == WAVE_SAW;
+          break;
+        case LEFT_BTN_SQUARE:
+          return self->wave_mode == WAVE_SQUARE;
+          break;
+        case LEFT_BTN_RND:
+          return self->wave_mode == WAVE_RND;
+          break;
+        default:
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_BOT:
+      switch (data->val)
+        {
+        case BOT_BTN_SYNC:
+          return !self->freerun;
+          break;
+        case BOT_BTN_FREE:
+          return self->freerun;
+          break;
+        }
+      break;
+    case DATA_TYPE_BTN_GRID:
+      switch (data->val)
+        {
+        case GRID_BTN_HMIRROR:
+          return self->hinvert;
+          break;
+        case GRID_BTN_VMIRROR:
+          return self->vinvert;
+          break;
+        }
+      break;
+    case DATA_TYPE_LBL:
+      break;
+    }
+
+  return 0;
+}
+
 static void
 add_left_buttons (
   ZLfoUi * self)
@@ -450,6 +594,10 @@ add_left_buttons (
           &rect,
           (ZtkWidgetActivateCallback)
           on_btn_clicked, data);
+      ztk_button_make_toggled (
+        btn,
+        (ZtkButtonToggledGetter)
+        get_button_active);
       ztk_button_set_background_colors (
         btn,
         &zlfo_ui_theme.button_normal,
@@ -483,48 +631,6 @@ add_left_buttons (
       ztk_app_add_widget (
         self->app, (ZtkWidget *) btn, 1);
     }
-}
-
-static int
-get_button_active (
-  ZtkButton * btn,
-  DrawData *  data)
-{
-  ZLfoUi * self = data->zlfo_ui;
-
-  switch (data->type)
-    {
-    case DATA_TYPE_BTN_TOP:
-      switch (data->val)
-        {
-        case TOP_BTN_CURVE:
-          return !self->step_mode;
-          break;
-        case TOP_BTN_STEP:
-          return self->step_mode;
-          break;
-        }
-      break;
-    case DATA_TYPE_BTN_LEFT:
-      break;
-    case DATA_TYPE_BTN_BOT:
-      switch (data->val)
-        {
-        case BOT_BTN_SYNC:
-          return !self->freerun;
-          break;
-        case BOT_BTN_FREE:
-          return self->freerun;
-          break;
-        }
-      break;
-    case DATA_TYPE_BTN_GRID:
-      break;
-    case DATA_TYPE_LBL:
-      break;
-    }
-
-  return 0;
 }
 
 static void
@@ -924,7 +1030,7 @@ add_bot_buttons (
       ZTK_CTRL_DRAG_VERTICAL,
       self, MIN_FREQ, MAX_FREQ, MIN_FREQ);
   ((ZtkWidget *) control)->user_data = self;
-  control->sensitivity = 0.008f;
+  control->sensitivity = 0.005f;
   ((ZtkWidget *) control)->button_event_cb =
     (ZtkWidgetButtonEventCallback)
     freq_control_btn_event_cb;
@@ -1004,26 +1110,29 @@ mid_region_bg_draw_cb (
   cairo_stroke (cr);
 #endif
 
-  /* draw node curves */
-  zlfo_ui_theme_set_cr_color (cr, line);
-  cairo_set_line_width (cr, 6);
-  for (int i = 0; i < self->num_nodes - 1; i++)
+  if (self->wave_mode == WAVE_CUSTOM)
     {
-      ZtkWidget * nodew = self->node_widgets[i];
-      ZtkWidget * next_nodew =
-        self->node_widgets[i + 1];
+      /* draw node curves */
+      zlfo_ui_theme_set_cr_color (cr, line);
+      cairo_set_line_width (cr, 6);
+      for (int i = 0; i < self->num_nodes - 1; i++)
+        {
+          ZtkWidget * nodew = self->node_widgets[i];
+          ZtkWidget * next_nodew =
+            self->node_widgets[i + 1];
 
-      cairo_move_to (
-        cr,
-        nodew->rect.x + nodew->rect.width / 2,
-        nodew->rect.y + nodew->rect.height / 2);
-      cairo_line_to (
-        cr,
-        next_nodew->rect.x +
-          next_nodew->rect.width / 2,
-        next_nodew->rect.y +
-          next_nodew->rect.height / 2);
-      cairo_stroke (cr);
+          cairo_move_to (
+            cr,
+            nodew->rect.x + nodew->rect.width / 2,
+            nodew->rect.y + nodew->rect.height / 2);
+          cairo_line_to (
+            cr,
+            next_nodew->rect.x +
+              next_nodew->rect.width / 2,
+            next_nodew->rect.y +
+              next_nodew->rect.height / 2);
+          cairo_stroke (cr);
+        }
     }
 }
 
@@ -1126,7 +1235,8 @@ node_update_cb (
   ZLfoUi * self = data->zlfo_ui;
 
   /* set visibility */
-  if (data->idx < self->num_nodes)
+  if (data->idx < self->num_nodes &&
+      self->wave_mode == WAVE_CUSTOM)
     {
       ztk_widget_set_visible (w, 1);
     }
@@ -1714,7 +1824,7 @@ add_grid_controls (
           (ZtkWidgetDrawCallback) grid_btn_draw_cb,
           NULL, data);
       ztk_app_add_widget (
-        self->app, (ZtkWidget *) da, 1);
+        self->app, (ZtkWidget *) da, 4);
     }
 
   /* add shift control */
@@ -1732,7 +1842,7 @@ add_grid_controls (
   control->sensitivity = 0.02f;
   ztk_control_set_relative_mode (control, 0);
   ztk_app_add_widget (
-    self->app, (ZtkWidget *) control, 1);
+    self->app, (ZtkWidget *) control, 4);
 
   /* add labels */
   padding = 2;
@@ -1809,6 +1919,9 @@ instantiate (
   self->write = write_function;
   self->controller = controller;
   self->dragging_node = -1;
+
+  /* FIXME save this in state */
+  self->wave_mode = WAVE_SINE;
 
 #ifndef RELEASE
   ztk_log_set_level (ZTK_LOG_LEVEL_DEBUG);
@@ -1927,6 +2040,14 @@ port_event (
         case ZLFO_SYNC_RATE_TYPE:
           self->sync_rate_type =
             * (const float *) buffer;
+          break;
+        case ZLFO_HINVERT:
+          self->hinvert =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_VINVERT:
+          self->vinvert =
+            (int) * (const float *) buffer;
           break;
         case ZLFO_NUM_NODES:
           self->num_nodes =
