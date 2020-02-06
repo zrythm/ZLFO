@@ -5,6 +5,8 @@ ZLFO is a fully featured LFO for CV-based automation.
 
 It comes as an LV2 plugin bundle with a custom UI.
 
+![screenshot](screenshots/2020_feb_06_zlfo.png)
+
 ZLFO is written in C and uses the pugl-based
 ZToolkit for its UI.
 
