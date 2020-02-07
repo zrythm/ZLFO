@@ -1,4 +1,4 @@
-# Copyright (C) 2019 Alexandros Theodotou <alex at zrythm dot org>
+# Copyright (C) 2019-2020 Alexandros Theodotou <alex at zrythm dot org>
 #
 # This file is part of ZLFO
 #
@@ -85,6 +85,7 @@ ztoolkit_dep = dependency(
 
 # cflags
 common_cflags = cc.get_supported_arguments([
+  '-fvisibility=hidden',
   '-Wformat=2',
   '-Wno-missing-field-initializers',
   '-Wno-unused-parameter',
@@ -160,65 +161,9 @@ add_project_arguments (
   language: [ 'c' ]
   )
 
-zlfo_dsp_lib = shared_library (
-  'zlfo_dsp',
-  name_prefix: '',
-  sources: [
-    'zlfo.c',
-    ],
-  dependencies: zlfo_deps,
-  include_directories: '.',
-  install: true,
-  install_dir: zlfodir,
-  )
-
-zlfo_ui_lib = shared_library (
-  'zlfo_ui',
-  name_prefix: '',
-  sources: [
-    'zlfo_ui.c',
-    ],
-  dependencies: [
-    zlfo_deps,
-    ztoolkit_dep,
-    dependency('glib-2.0'),
-    ],
-  include_directories: '.',
-  install: true,
-  install_dir: zlfodir,
-  )
-
-# create and install manifest ttl
-manifest_ttl = configure_file (
-  input: 'manifest.ttl.in',
-  output: 'manifest.ttl',
-  configuration: zlfo_cdata,
-  )
-install_data (
-  manifest_ttl,
-  install_dir: zlfodir,
-  )
-
-# create and install zlfo ttl
-lv2_ttl_gen = executable (
-  'lv2_ttl_gen',
-  sources: [
-    'zlfo_ttl_gen.c',
-    ],
-  include_directories: '.',
-  c_args: common_cflags,
-  install: false,
-  )
-zlfo_ttl = custom_target (
-  'zlfo.ttl',
-  output: 'zlfo.ttl',
-  input: [ lv2_ttl_gen, zlfo_config_h ],
-  command: [
-    lv2_ttl_gen, '@OUTPUT@' ],
-  install: true,
-  install_dir: zlfodir,
-  )
-
 # install resources
 install_subdir (
   'resources', install_dir: zlfodir)
+
+subdir('src')
+subdir('tests')

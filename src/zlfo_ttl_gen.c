@@ -99,7 +99,27 @@ int main (
     lv2:symbol \"notify\" ;\n\
     lv2:name \"Notify\" ;\n\
     rdfs:comment \"Plugin to GUI communication\" ;\n\
-  ] , [\n");
+  ] , [\n\
+    a lv2:InputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index 2 ;\n\
+    lv2:symbol \"cv_gate\" ;\n\
+    lv2:name \"Gate\" ;\n\
+    rdfs:comment \"CV gate\" ;\n\
+    lv2:default %f ;\n\
+    lv2:minimum %f ;\n\
+    lv2:maximum %f ;\n\
+  ] , [\n\
+    a lv2:InputPort ,\n\
+      lv2:CVPort ;\n\
+    lv2:index 3 ;\n\
+    lv2:symbol \"cv_trigger\" ;\n\
+    lv2:name \"Trigger\" ;\n\
+    rdfs:comment \"CV trigger\" ;\n\
+    lv2:default %f ;\n\
+    lv2:minimum %f ;\n\
+    lv2:maximum %f ;\n\
+  ] , [\n", 0.0, -1.0, 1.0, 0.0, -1.0, 1.0);
 
   /* write input controls */
   int index = ZLFO_GATE;
@@ -344,9 +364,11 @@ int main (
 "<" LFO_UI_URI ">\n\
   a ui:X11UI ;\n\
   lv2:requiredFeature urid:map ;\n\
-  lv2:optionalFeature log:log ;\n\
-  lv2:optionalFeature ui:noUserResize ;\n\
-  lv2:extensionData ui:idleInterface ;\n\
+  lv2:optionalFeature log:log ,\n\
+                      ui:idleInterface,\n\
+                      ui:noUserResize ;\n\
+  lv2:extensionData ui:idleInterface ,\n\
+                    ui:showInterface ;\n\
   ui:portNotification [\n\
     ui:plugin \"" LFO_URI "\" ;\n\
     lv2:symbol \"notify\" ;\n\

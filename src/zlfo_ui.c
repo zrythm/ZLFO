@@ -158,6 +158,10 @@ typedef enum WaveMode
 typedef struct ZLfoUi
 {
   /** Port values. */
+  float            gate;
+  int              trigger;
+  float            cv_gate;
+  float            cv_trigger;
   float            freq;
   float            shift;
   float            range_min;
@@ -2003,6 +2007,22 @@ port_event (
         {
         case ZLFO_FREQ:
           self->freq = * (const float *) buffer;
+          break;
+        case ZLFO_CV_GATE:
+          self->cv_gate =
+            * (const float *) buffer;
+          break;
+        case ZLFO_CV_TRIGGER:
+          self->cv_trigger =
+            * (const float *) buffer;
+          break;
+        case ZLFO_GATE:
+          self->gate =
+            * (const float *) buffer;
+          break;
+        case ZLFO_TRIGGER:
+          self->trigger =
+            (int) * (const float *) buffer;
           break;
         case ZLFO_SHIFT:
           self->shift = * (const float *) buffer;

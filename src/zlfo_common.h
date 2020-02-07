@@ -70,6 +70,8 @@ typedef enum PortIndex
   /** Plugin to UI communication. */
   ZLFO_NOTIFY,
 
+  ZLFO_CV_GATE,
+  ZLFO_CV_TRIGGER,
   ZLFO_GATE,
   ZLFO_TRIGGER,
   ZLFO_SYNC_RATE,

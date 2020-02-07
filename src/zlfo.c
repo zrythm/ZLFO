@@ -1,20 +1,20 @@
 /*
- * Copyright (C) 2019 Alexandros Theodotou <alex at zrythm dot org>
+ * Copyright (C) 2019-2020 Alexandros Theodotou <alex at zrythm dot org>
  *
- * This file is part of ZPlugins
+ * This file is part of ZLFO
  *
- * ZPlugins is free software: you can redistribute it and/or modify
+ * ZLFO is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
  *
- * ZPlugins is distributed in the hope that it will be useful,
+ * ZLFO is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU General Affero Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with ZLFO.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #include "config.h"
@@ -30,7 +30,7 @@
 #include "lv2/log/log.h"
 #include "lv2/core/lv2.h"
 
-const float PI = (float) M_PI;
+static const float PI = (float) M_PI;
 
 typedef struct ZLFO
 {
@@ -39,6 +39,8 @@ typedef struct ZLFO
   LV2_Atom_Sequence* notify;
   const float * gate;
   const float * trigger;
+  const float * cv_gate;
+  const float * cv_trigger;
   const float * freq;
   const float * shift;
   const float * range_min;
@@ -164,6 +166,18 @@ connect_port (
     case ZLFO_NOTIFY:
       self->notify =
         (LV2_Atom_Sequence *) data;
+      break;
+    case ZLFO_CV_GATE:
+      self->cv_gate = (const float *) data;
+      break;
+    case ZLFO_CV_TRIGGER:
+      self->cv_trigger = (const float *) data;
+      break;
+    case ZLFO_GATE:
+      self->gate = (const float *) data;
+      break;
+    case ZLFO_TRIGGER:
+      self->trigger = (const float *) data;
       break;
     case ZLFO_FREQ:
       self->freq = (const float *) data;
