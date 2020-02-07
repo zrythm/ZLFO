@@ -30,6 +30,11 @@
 #include "lv2/log/log.h"
 #include "lv2/core/lv2.h"
 
+#define math_floats_equal(a,b) \
+  (a > b ? \
+   (a - b) < 0.0001f : \
+   (b - a) < 0.0001f)
+
 static const float PI = (float) M_PI;
 
 typedef struct ZLFO
@@ -87,8 +92,12 @@ typedef struct ZLFO
    */
   float         effective_freq;
 
+  /* --- values in the last run --- */
+
   /** Frequency during the last run. */
   float         last_freq;
+  float         last_sync_rate;
+  float         last_sync_rate_type;
 
   /**
    * Whether the plugin was freerunning in the
@@ -183,6 +192,139 @@ instantiate (
   lv2_atom_forge_init (&self->forge, self->map);
 
   return (LV2_Handle) self;
+}
+
+/**
+ * Gets the current frequency.
+ */
+static float
+get_freq (
+  ZLFO * self)
+{
+  if (*self->freerun > 0.f)
+    {
+      return *self->freq;
+    }
+  else
+    {
+      /* if host does not send position info,
+       * send frequency back instead */
+      if (self->beat_unit == 0)
+        {
+          log_error (
+            self->log, &self->uris,
+            "Have not received time info from host "
+            "yet. Beat unit is unknown.");
+          return * self->freq;
+        }
+
+      /* bpm / (60 * BU * sync note) */
+      float sync_note =
+        sync_rate_to_float (
+          (SyncRate) *self->sync_rate,
+          (SyncRateType) *self->sync_rate_type);
+      return
+        self->bpm /
+        (60.f * self->beat_unit * sync_note);
+    }
+}
+
+static void
+recalc_multipliers (
+  ZLFO * self)
+{
+  /* no ports connected yet */
+  if (!self->freerun)
+    return;
+
+  self->effective_freq = get_freq (self);
+
+  /*
+   * F = frequency
+   * X = samples processed
+   * SR = sample rate
+   *
+   * First, get the radians.
+   * ? radians =
+   *   (2 * PI) radians per LFO cycle *
+   *   F cycles per second *
+   *   (1 / SR samples per second) *
+   *   X samples
+   *
+   * Then the LFO value is the sine of
+   * (radians % (2 * PI)).
+   *
+   * This multiplier handles the part known by now
+   * and the first part of the calculation should
+   * become:
+   * ? radians = X samples * sine_multiplier
+   */
+  self->sine_multiplier =
+    (self->effective_freq /
+     (float) self->samplerate) *
+    2.f * PI;
+
+  /*
+   * F = frequency
+   * X = samples processed
+   * SR = sample rate
+   *
+   * First, get the value.
+   * ? value =
+   *   (1 value per LFO cycle *
+   *    F cycles per second *
+   *    1 / SR samples per second *
+   *    X samples) % 1
+   *
+   * Then the LFO value is value * 2 - 1 (to make
+   * it start from -1 and end at 1).
+   *
+   * This multiplier handles the part known by now and the
+   * first part of the calculation should become:
+   * ? value = ((X samples * saw_multiplier) % 1) * 2 - 1
+   */
+  self->saw_up_multiplier =
+    (self->effective_freq /
+     (float) self->samplerate);
+
+  if (*self->freerun > 0.0001f) /* freerunning */
+    {
+      self->period_size =
+        (uint32_t)
+        ((float) self->samplerate /
+         self->effective_freq);
+      self->current_sample = 0;
+    }
+  else /* synced */
+    {
+      if (self->beat_unit == 0)
+        {
+          /* set reasonable values if host does not
+           * send time info */
+          log_error (
+            self->log, &self->uris,
+            "Host did not send time info. Beat "
+            "unit is unknown.");
+          self->period_size =
+            (uint32_t)
+            ((float) self->samplerate /
+             self->effective_freq);
+          self->current_sample = 0;
+        }
+      else
+        {
+          self->period_size =
+            (uint32_t)
+            (self->frames_per_beat *
+            self->beat_unit *
+            sync_rate_to_float (
+              *self->sync_rate,
+              *self->sync_rate_type));
+          self->current_sample =
+            (self->host_current_sample %
+                self->period_size);
+        }
+    }
 }
 
 static void
@@ -309,6 +451,13 @@ send_messages_to_ui (
   lv2_atom_forge_long (
     &self->forge, self->current_sample);
 
+  /* append property for period size */
+  lv2_atom_forge_key (
+    &self->forge,
+    self->uris.ui_state_period_size);
+  lv2_atom_forge_long (
+    &self->forge, self->period_size);
+
   /* append samplerate */
   lv2_atom_forge_key (
     &self->forge,
@@ -318,133 +467,6 @@ send_messages_to_ui (
 
   /* finish object */
   lv2_atom_forge_pop (&self->forge, &frame);
-}
-
-/**
- * Gets the current frequency.
- */
-static float
-get_freq (
-  ZLFO * self)
-{
-  if (*self->freerun > 0.f)
-    {
-      return *self->freq;
-    }
-  else
-    {
-      /* if host does not send position info,
-       * send frequency back instead */
-      if (self->beat_unit == 0)
-        {
-          log_error (
-            self->log, &self->uris,
-            "Have not received time info from host "
-            "yet. Beat unit is unknown.");
-          return * self->freq;
-        }
-
-      /* bpm / (60 * BU * sync note) */
-      float sync_note =
-        sync_rate_to_float (
-          (SyncRate) *self->sync_rate,
-          (SyncRateType) *self->sync_rate_type);
-      return
-        self->bpm /
-        (60.f * self->beat_unit * sync_note);
-    }
-}
-
-static void
-recalc_multipliers (
-  ZLFO * self)
-{
-  self->effective_freq = get_freq (self);
-
-  fprintf (stderr, "effective freq is %f\n", (double) self->effective_freq);
-
-  /*
-   * F = frequency
-   * X = samples processed
-   * SR = sample rate
-   *
-   * First, get the radians.
-   * ? radians =
-   *   (2 * PI) radians per LFO cycle *
-   *   F cycles per second *
-   *   (1 / SR samples per second) *
-   *   X samples
-   *
-   * Then the LFO value is the sine of
-   * (radians % (2 * PI)).
-   *
-   * This multiplier handles the part known by now
-   * and the first part of the calculation should
-   * become:
-   * ? radians = X samples * sine_multiplier
-   */
-  self->sine_multiplier =
-    (self->effective_freq /
-     (float) self->samplerate) *
-    2.f * PI;
-
-  /*
-   * F = frequency
-   * X = samples processed
-   * SR = sample rate
-   *
-   * First, get the value.
-   * ? value =
-   *   (1 value per LFO cycle *
-   *    F cycles per second *
-   *    1 / SR samples per second *
-   *    X samples) % 1
-   *
-   * Then the LFO value is value * 2 - 1 (to make
-   * it start from -1 and end at 1).
-   *
-   * This multiplier handles the part known by now and the
-   * first part of the calculation should become:
-   * ? value = ((X samples * saw_multiplier) % 1) * 2 - 1
-   */
-  self->saw_up_multiplier =
-    (self->effective_freq /
-     (float) self->samplerate);
-
-  if (*self->freerun > 0.0001f) /* freerunning */
-    {
-      self->period_size =
-        (uint32_t)
-        ((float) self->samplerate /
-         self->effective_freq);
-      self->current_sample = 0;
-    }
-  else /* synced */
-    {
-      if (self->beat_unit == 0)
-        {
-          /* set reasonable values if host does not
-           * send time info */
-          self->period_size =
-            (uint32_t)
-            ((float) self->samplerate /
-             self->effective_freq);
-          self->current_sample = 0;
-        }
-      else
-        {
-          self->period_size =
-            (uint32_t)
-            (self->frames_per_beat *
-            self->beat_unit *
-            sync_rate_to_float (
-              *self->sync_rate,
-              *self->sync_rate_type));
-          self->current_sample =
-            (uint32_t)
-            (self->beat_offset * self->period_size);
-        }
-    }
 }
 
 static void
@@ -467,11 +489,13 @@ update_position (
   LV2_Atom *beat = NULL,
            *bpm = NULL,
            *beat_unit = NULL,
-           *speed = NULL;
+           *speed = NULL,
+           *frame = NULL;
   lv2_atom_object_get (
     obj, uris->time_barBeat, &beat,
     uris->time_beatUnit, &beat_unit,
     uris->time_beatsPerMinute, &bpm,
+    uris->time_frame, &frame,
     uris->time_speed, &speed, NULL);
   if (bpm && bpm->type == uris->atom_Float)
     {
@@ -488,6 +512,11 @@ update_position (
     {
       self->beat_unit =
         ((LV2_Atom_Int *) beat_unit)->body;
+    }
+  if (frame && frame->type == uris->atom_Long)
+    {
+      self->host_current_sample =
+        ((LV2_Atom_Int *) frame)->body;
     }
   if (beat && beat->type == uris->atom_Float)
     {
@@ -512,7 +541,6 @@ run (
   LV2_ATOM_SEQUENCE_FOREACH (
     self->control, ev)
     {
-      self->host_current_sample = ev->time.frames;
       if (lv2_atom_forge_is_object_type (
             &self->forge, ev->body.type))
         {
@@ -528,36 +556,43 @@ run (
                      self->uris.ui_on)
             {
               self->ui_active = 1;
-              fprintf (stderr, "UI IS ACTIVE\n\n");
+              fprintf (stderr, "UI IS ACTIVE\n");
             }
           else if (obj->body.otype ==
                      self->uris.ui_off)
             {
               self->ui_active = 0;
-              fprintf (stderr, "UI IS OFF\n\n");
+              fprintf (stderr, "UI IS OFF\n");
             }
         }
     }
 
   int freq_changed =
-    fabsf (
-      self->last_freq - *self->freq) >
-        0.0001f;
+    !math_floats_equal (
+      self->last_freq, *self->freq);
   int is_freerunning = *self->freerun > 0.0001f;
-  int sync_or_freerun_changed =
+  int sync_or_freerun_mode_changed =
     self->was_freerunning &&
     !is_freerunning;
+  int sync_rate_changed =
+    !(math_floats_equal (
+      self->last_sync_rate, *self->sync_rate) &&
+    math_floats_equal (
+      self->last_sync_rate_type,
+      *self->sync_rate_type));
 
   /* if freq or transport changed, reset the
    * multipliers */
   if (xport_changed || freq_changed ||
-      sync_or_freerun_changed)
+      sync_rate_changed ||
+      sync_or_freerun_mode_changed)
     {
-          fprintf (
-            stderr,
-            "xport %d freq %d sync %d\n",
-            xport_changed, freq_changed,
-            sync_or_freerun_changed);
+#if 0
+      fprintf (
+        stderr, "xport %d freq %d sync %d\n",
+        xport_changed, freq_changed,
+        sync_or_freerun_mode_changed);
+#endif
       recalc_multipliers (self);
     }
 
@@ -691,10 +726,17 @@ run (
             self->period_size)
         self->current_sample = 0;
     }
-  fprintf (stderr, "current sample %ld\n", self->current_sample);
+#if 0
+  fprintf (
+    stderr, "current sample %ld, "
+    "period size%ld\n",
+    self->current_sample, self->period_size);
+#endif
 
-  /* remember frequency */
+  /* remember values */
   self->last_freq = *self->freq;
+  self->last_sync_rate = *self->sync_rate;
+  self->last_sync_rate_type = *self->sync_rate_type;
   self->was_freerunning = is_freerunning;
 
   if (self->ui_active)

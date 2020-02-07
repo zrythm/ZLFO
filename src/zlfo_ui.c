@@ -177,6 +177,7 @@ typedef struct ZLfoUi
 
   /** Non-port values */
   long             current_sample;
+  long             period_size;
   double           samplerate;
   WaveMode         wave_mode;
 
@@ -1112,13 +1113,15 @@ mid_region_bg_draw_cb (
 
 /*#if 0*/
   /* draw current position */
-  long period_size =
-    (long)
-    ((float) self->samplerate / self->freq);
   double total_space = GRID_WIDTH;
   double current_offset =
     (double) self->current_sample /
-    (double) period_size;
+    (double) self->period_size;
+#if 0
+  ztk_message (
+    "current_sample %ld, period size %ld",
+    self->current_sample, self->period_size);
+#endif
   cairo_move_to (
     cr,
     widget->rect.x + GRID_HPADDING +
@@ -2127,10 +2130,13 @@ port_event (
             {
               const LV2_Atom* current_sample = NULL;
               const LV2_Atom* samplerate = NULL;
+              const LV2_Atom* period_size = NULL;
               lv2_atom_object_get (
                 obj,
                 self->uris.ui_state_current_sample,
                 &current_sample,
+                self->uris.ui_state_period_size,
+                &period_size,
                 self->uris.ui_state_samplerate,
                 &samplerate,
                 NULL);
@@ -2139,7 +2145,10 @@ port_event (
                     self->uris.atom_Long &&
                   samplerate &&
                   samplerate->type ==
-                    self->uris.atom_Double)
+                    self->uris.atom_Double &&
+                  period_size &&
+                  period_size->type ==
+                    self->uris.atom_Long)
                 {
                   self->current_sample =
                     ((LV2_Atom_Long*)
@@ -2147,6 +2156,9 @@ port_event (
                   self->samplerate =
                     ((LV2_Atom_Double*)
                      samplerate)->body;
+                  self->period_size =
+                    ((LV2_Atom_Long*)
+                     period_size)->body;
                 }
               else
                 {

@@ -67,6 +67,7 @@ typedef struct ZLfoUris
   /* object */
   LV2_URID ui_state;
   LV2_URID ui_state_current_sample;
+  LV2_URID ui_state_period_size;
   LV2_URID ui_state_samplerate;
 
   /** Messages for UI on/off. */
@@ -253,6 +254,9 @@ map_uris (
   MAP (
     ui_state_current_sample,
     LFO_URI "#ui_state_current_sample");
+  MAP (
+    ui_state_period_size,
+    LFO_URI "#ui_state_period_size");
   MAP (
     ui_state_samplerate,
     LFO_URI "#ui_state_samplerate");
