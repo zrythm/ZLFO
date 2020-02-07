@@ -2180,16 +2180,20 @@ port_event (
         }
       else
         {
+#if 0
           log_error (
             self->log, &self->uris,
             "Unknown message type");
+#endif
         }
     }
   else
     {
+#if 0
       log_error (
         self->log, &self->uris,
         "Unknown format");
+#endif
     }
 }
 

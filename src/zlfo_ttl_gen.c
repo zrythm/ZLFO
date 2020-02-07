@@ -60,13 +60,14 @@ int main (
 "@prefix atom: <http://lv2plug.in/ns/ext/atom#> .\n\
 @prefix doap: <http://usefulinc.com/ns/doap#> .\n\
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+@prefix log:  <http://lv2plug.in/ns/ext/log#> .\n\
 @prefix lv2:  <http://lv2plug.in/ns/lv2core#> .\n\
 @prefix midi: <http://lv2plug.in/ns/ext/midi#> .\n\
+@prefix pprop: <http://lv2plug.in/ns/ext/port-props#> .\n\
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
 @prefix time:  <http://lv2plug.in/ns/ext/time#> .\n\
 @prefix urid: <http://lv2plug.in/ns/ext/urid#> .\n\
-@prefix ui:   <http://lv2plug.in/ns/extensions/ui#> .\n\
-@prefix log:  <http://lv2plug.in/ns/ext/log#> .\n\n");
+@prefix ui:   <http://lv2plug.in/ns/extensions/ui#> .\n\n");
 
   fprintf (f,
 "<" LFO_URI ">\n\
@@ -303,7 +304,7 @@ int main (
       if (is_trigger)
         {
           fprintf (f,
-"    lv2:portProperty lv2:trigger ;\n");
+"    lv2:portProperty pprop:trigger ;\n");
         }
       else if (type == PORT_TYPE_INT)
         {
