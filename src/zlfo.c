@@ -62,8 +62,42 @@ typedef struct ZLFO
   float *       rnd_out;
   float *       custom_out;
 
+  /** Transport speed (0.0 is stopped, 1.0 is
+   * normal playback, -1.0 is reverse playback,
+   * etc.). */
+  float         speed;
+
+  float         bpm;
+
+  /** Frames per beat. */
+  float         frames_per_beat;
+
+  int           beat_unit;
+
+  /** This is how far we are inside a beat, from 0.0
+   * to 1.0. */
+  float         beat_offset;
+
+  /**
+   * Effective frequency.
+   *
+   * This is either the free-running frequency,
+   * or the frequency corresponding to the current
+   * sync rate.
+   */
+  float         effective_freq;
+
   /** Frequency during the last run. */
   float         last_freq;
+
+  /**
+   * Whether the plugin was freerunning in the
+   * last cycle.
+   *
+   * This is used to detect changes in freerunning/
+   * sync.
+   */
+  int           was_freerunning;
 
   /** Plugin samplerate. */
   double        samplerate;
@@ -77,6 +111,9 @@ typedef struct ZLFO
    * This should be sent to the UI.
    */
   long          current_sample;
+
+  /** Global current sample in the host. */
+  long          host_current_sample;
 
   /** Atom forge. */
   LV2_Atom_Forge forge;
@@ -143,8 +180,7 @@ instantiate (
   /* map uris */
   map_uris (self->map, &self->uris);
 
-  lv2_atom_forge_init (
-    &self->forge, self->map);
+  lv2_atom_forge_init (&self->forge, self->map);
 
   return (LV2_Handle) self;
 }
@@ -284,10 +320,49 @@ send_messages_to_ui (
   lv2_atom_forge_pop (&self->forge, &frame);
 }
 
+/**
+ * Gets the current frequency.
+ */
+static float
+get_freq (
+  ZLFO * self)
+{
+  if (*self->freerun > 0.f)
+    {
+      return *self->freq;
+    }
+  else
+    {
+      /* if host does not send position info,
+       * send frequency back instead */
+      if (self->beat_unit == 0)
+        {
+          log_error (
+            self->log, &self->uris,
+            "Have not received time info from host "
+            "yet. Beat unit is unknown.");
+          return * self->freq;
+        }
+
+      /* bpm / (60 * BU * sync note) */
+      float sync_note =
+        sync_rate_to_float (
+          (SyncRate) *self->sync_rate,
+          (SyncRateType) *self->sync_rate_type);
+      return
+        self->bpm /
+        (60.f * self->beat_unit * sync_note);
+    }
+}
+
 static void
 recalc_multipliers (
   ZLFO * self)
 {
+  self->effective_freq = get_freq (self);
+
+  fprintf (stderr, "effective freq is %f\n", (double) self->effective_freq);
+
   /*
    * F = frequency
    * X = samples processed
@@ -309,7 +384,8 @@ recalc_multipliers (
    * ? radians = X samples * sine_multiplier
    */
   self->sine_multiplier =
-    (*self->freq / (float) self->samplerate) *
+    (self->effective_freq /
+     (float) self->samplerate) *
     2.f * PI;
 
   /*
@@ -332,12 +408,43 @@ recalc_multipliers (
    * ? value = ((X samples * saw_multiplier) % 1) * 2 - 1
    */
   self->saw_up_multiplier =
-    (*self->freq / (float) self->samplerate);
+    (self->effective_freq /
+     (float) self->samplerate);
 
-  self->period_size =
-    (uint32_t)
-    ((float) self->samplerate / * self->freq);
-  self->current_sample = 0;
+  if (*self->freerun > 0.0001f) /* freerunning */
+    {
+      self->period_size =
+        (uint32_t)
+        ((float) self->samplerate /
+         self->effective_freq);
+      self->current_sample = 0;
+    }
+  else /* synced */
+    {
+      if (self->beat_unit == 0)
+        {
+          /* set reasonable values if host does not
+           * send time info */
+          self->period_size =
+            (uint32_t)
+            ((float) self->samplerate /
+             self->effective_freq);
+          self->current_sample = 0;
+        }
+      else
+        {
+          self->period_size =
+            (uint32_t)
+            (self->frames_per_beat *
+            self->beat_unit *
+            sync_rate_to_float (
+              *self->sync_rate,
+              *self->sync_rate_type));
+          self->current_sample =
+            (uint32_t)
+            (self->beat_offset * self->period_size);
+        }
+    }
 }
 
 static void
@@ -350,16 +457,107 @@ activate (
 }
 
 static void
+update_position (
+  ZLFO *                  self,
+  const LV2_Atom_Object * obj)
+{
+  ZLfoUris * uris = &self->uris;
+
+  /* Received new transport position/speed */
+  LV2_Atom *beat = NULL,
+           *bpm = NULL,
+           *beat_unit = NULL,
+           *speed = NULL;
+  lv2_atom_object_get (
+    obj, uris->time_barBeat, &beat,
+    uris->time_beatUnit, &beat_unit,
+    uris->time_beatsPerMinute, &bpm,
+    uris->time_speed, &speed, NULL);
+  if (bpm && bpm->type == uris->atom_Float)
+    {
+      /* Tempo changed, update BPM */
+      self->bpm = ((LV2_Atom_Float*)bpm)->body;
+     }
+  if (speed && speed->type == uris->atom_Float)
+    {
+      /* Speed changed, e.g. 0 (stop) to 1 (play) */
+      self->speed =
+        ((LV2_Atom_Float *) speed)->body;
+    }
+  if (beat_unit && beat_unit->type == uris->atom_Int)
+    {
+      self->beat_unit =
+        ((LV2_Atom_Int *) beat_unit)->body;
+    }
+  if (beat && beat->type == uris->atom_Float)
+    {
+      self->frames_per_beat =
+        60.0f / self->bpm * (float) self->samplerate;
+      const float bar_beats =
+        ((LV2_Atom_Float *) beat)->body;
+      self->beat_offset = fmodf (bar_beats, 1.f);
+    }
+}
+
+static void
 run (
   LV2_Handle instance,
   uint32_t n_samples)
 {
   ZLFO * self = (ZLFO *) instance;
 
-  /* if freq changed, set the multipliers */
-  if (fabsf (self->last_freq - *self->freq) >
-        0.0001f)
+  int xport_changed = 0;
+
+  /* read incoming events from host and UI */
+  LV2_ATOM_SEQUENCE_FOREACH (
+    self->control, ev)
     {
+      self->host_current_sample = ev->time.frames;
+      if (lv2_atom_forge_is_object_type (
+            &self->forge, ev->body.type))
+        {
+          const LV2_Atom_Object * obj =
+            (const LV2_Atom_Object*)&ev->body;
+          if (obj->body.otype ==
+                self->uris.time_Position)
+            {
+              update_position (self, obj);
+              xport_changed = 1;
+            }
+          else if (obj->body.otype ==
+                     self->uris.ui_on)
+            {
+              self->ui_active = 1;
+              fprintf (stderr, "UI IS ACTIVE\n\n");
+            }
+          else if (obj->body.otype ==
+                     self->uris.ui_off)
+            {
+              self->ui_active = 0;
+              fprintf (stderr, "UI IS OFF\n\n");
+            }
+        }
+    }
+
+  int freq_changed =
+    fabsf (
+      self->last_freq - *self->freq) >
+        0.0001f;
+  int is_freerunning = *self->freerun > 0.0001f;
+  int sync_or_freerun_changed =
+    self->was_freerunning &&
+    !is_freerunning;
+
+  /* if freq or transport changed, reset the
+   * multipliers */
+  if (xport_changed || freq_changed ||
+      sync_or_freerun_changed)
+    {
+          fprintf (
+            stderr,
+            "xport %d freq %d sync %d\n",
+            xport_changed, freq_changed,
+            sync_or_freerun_changed);
       recalc_multipliers (self);
     }
 
@@ -483,16 +681,26 @@ run (
 
 #undef ADJUST_RANGE
 
-      self->current_sample++;
+      if (is_freerunning ||
+          (!is_freerunning && self->speed >
+             0.00001f))
+        {
+          self->current_sample++;
+        }
       if (self->current_sample ==
             self->period_size)
         self->current_sample = 0;
     }
+  fprintf (stderr, "current sample %ld\n", self->current_sample);
 
   /* remember frequency */
   self->last_freq = *self->freq;
+  self->was_freerunning = is_freerunning;
 
-  send_messages_to_ui (self);
+  if (self->ui_active)
+    {
+      send_messages_to_ui (self);
+    }
 }
 
 static void

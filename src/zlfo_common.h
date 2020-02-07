@@ -34,6 +34,7 @@
 #include "lv2/atom/atom.h"
 #include "lv2/log/log.h"
 #include "lv2/urid/urid.h"
+#include "lv2/time/time.h"
 
 /** Min, max and default frequency. */
 #define MIN_FREQ 0.1f
@@ -54,13 +55,23 @@ typedef struct ZLfoUris
   LV2_URID log_Note;
   LV2_URID log_Trace;
   LV2_URID log_Warning;
+  LV2_URID time_Position;
+  LV2_URID time_bar;
+  LV2_URID time_barBeat;
+  LV2_URID time_beatsPerMinute;
+  LV2_URID time_beatUnit;
+  LV2_URID time_frame;
+  LV2_URID time_speed;
 
   /* custom URIs */
+  /* object */
   LV2_URID ui_state;
-  LV2_URID ui_on;
-  LV2_URID ui_off;
   LV2_URID ui_state_current_sample;
   LV2_URID ui_state_samplerate;
+
+  /** Messages for UI on/off. */
+  LV2_URID ui_on;
+  LV2_URID ui_off;
 } ZLfoUris;
 
 typedef enum PortIndex
@@ -171,6 +182,40 @@ typedef enum CurveAlgorithm
   CURVE_ALGORITHM_SUPERELLIPSE,
 } CurveAlgorithm;
 
+static inline float
+sync_rate_to_float (
+  SyncRate     rate,
+  SyncRateType type)
+{
+  switch (rate)
+    {
+    case SYNC_1_128:
+      return 1.f / 128.f;
+    case SYNC_1_64:
+      return 1.f / 64.f;
+    case SYNC_1_32:
+      return 1.f / 32.f;
+    case SYNC_1_16:
+      return 1.f / 16.f;
+    case SYNC_1_8:
+      return 1.f / 8.f;
+    case SYNC_1_4:
+      return 1.f / 4.f;
+    case SYNC_1_2:
+      return 1.f / 2.f;
+    case SYNC_1_1:
+      return 1.f;
+    case SYNC_2_1:
+      return 2.f;
+    case SYNC_4_1:
+      return 4.f;
+    default:
+      break;
+    }
+
+  return 0.f;
+}
+
 static inline void
 map_uris (
   LV2_URID_Map* map,
@@ -179,6 +224,7 @@ map_uris (
 #define MAP(x,uri) \
   uris->x = map->map (map->handle, uri)
 
+  /* official URIs */
   MAP (atom_Blank, LV2_ATOM__Blank);
   MAP (atom_Object, LV2_ATOM__Object);
   MAP (atom_Float, LV2_ATOM__Float);
@@ -191,6 +237,16 @@ map_uris (
   MAP (log_Note, LV2_LOG__Note);
   MAP (log_Trace, LV2_LOG__Trace);
   MAP (log_Warning, LV2_LOG__Warning);
+  MAP (time_Position, LV2_TIME__Position);
+  MAP (time_bar, LV2_TIME__bar);
+  MAP (time_barBeat, LV2_TIME__barBeat);
+  MAP (
+    time_beatsPerMinute, LV2_TIME__beatsPerMinute);
+  MAP (time_beatUnit, LV2_TIME__beatUnit);
+  MAP (time_frame, LV2_TIME__frame);
+  MAP (time_speed, LV2_TIME__speed);
+
+  /* custom URIs */
   MAP (ui_on, LFO_URI "#ui_on");
   MAP (ui_off, LFO_URI "#ui_off");
   MAP (ui_state, LFO_URI "#ui_state");

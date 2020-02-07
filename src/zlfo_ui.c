@@ -1110,27 +1110,27 @@ mid_region_bg_draw_cb (
     widget->rect.y + 105);
   cairo_stroke (cr);
 
-#if 0
+/*#if 0*/
   /* draw current position */
   long period_size =
     (long)
     ((float) self->samplerate / self->freq);
-  double total_space = 8 * space;
+  double total_space = GRID_WIDTH;
   double current_offset =
     (double) self->current_sample /
     (double) period_size;
   cairo_move_to (
     cr,
-    widget->rect.x + hpadding +
+    widget->rect.x + GRID_HPADDING +
       current_offset * total_space,
     widget->rect.y + 46);
   cairo_line_to (
     cr,
-    widget->rect.x + hpadding +
+    widget->rect.x + GRID_HPADDING +
       current_offset * total_space,
     widget->rect.y + 164);
   cairo_stroke (cr);
-#endif
+/*#endif*/
 
   if (self->wave_mode == WAVE_CUSTOM)
     {
@@ -1969,6 +1969,23 @@ instantiate (
     (LV2UI_Widget)
     puglGetNativeWindow (self->app->view);
 
+  /* let the plugin know that the UI is active */
+  uint8_t obj_buf[64];
+  lv2_atom_forge_set_buffer (
+    &self->forge, obj_buf, 64);
+  LV2_Atom_Forge_Frame frame;
+  lv2_atom_forge_frame_time (&self->forge, 0);
+  LV2_Atom* msg =
+    (LV2_Atom *)
+    lv2_atom_forge_object (
+      &self->forge, &frame, 1,
+      self->uris.ui_on);
+  lv2_atom_forge_pop (&self->forge, &frame);
+  self->write (
+    self->controller, 0,
+    lv2_atom_total_size (msg),
+    self->uris.atom_eventTransfer, msg);
+
   return self;
 }
 
@@ -1976,6 +1993,23 @@ static void
 cleanup (LV2UI_Handle handle)
 {
   ZLfoUi * self = (ZLfoUi *) handle;
+
+  /* let the plugin know that the UI is off */
+  uint8_t obj_buf[64];
+  lv2_atom_forge_set_buffer (
+    &self->forge, obj_buf, 64);
+  LV2_Atom_Forge_Frame frame;
+  lv2_atom_forge_frame_time (&self->forge, 0);
+  LV2_Atom* msg =
+    (LV2_Atom *)
+    lv2_atom_forge_object (
+      &self->forge, &frame, 1,
+      self->uris.ui_off);
+  lv2_atom_forge_pop (&self->forge, &frame);
+  self->write (
+    self->controller, 0,
+    lv2_atom_total_size (msg),
+    self->uris.atom_eventTransfer, msg);
 
   ztk_app_free (self->app);
 
@@ -2121,7 +2155,7 @@ port_event (
                     "failed to get current sample");
                 }
             }
-#if 0
+/*#if 0*/
           PuglRect rect;
           rect.x = self->mid_region->rect.x;
           rect.y = self->mid_region->rect.y;
@@ -2130,7 +2164,7 @@ port_event (
             self->mid_region->rect.height;
           puglPostRedisplayRect (
             self->app->view, rect);
-#endif
+/*#endif*/
         }
       else
         {

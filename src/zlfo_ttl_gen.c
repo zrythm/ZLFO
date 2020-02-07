@@ -59,10 +59,11 @@ int main (
   fprintf (f,
 "@prefix atom: <http://lv2plug.in/ns/ext/atom#> .\n\
 @prefix doap: <http://usefulinc.com/ns/doap#> .\n\
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
 @prefix lv2:  <http://lv2plug.in/ns/lv2core#> .\n\
 @prefix midi: <http://lv2plug.in/ns/ext/midi#> .\n\
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
-@prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+@prefix time:  <http://lv2plug.in/ns/ext/time#> .\n\
 @prefix urid: <http://lv2plug.in/ns/ext/urid#> .\n\
 @prefix ui:   <http://lv2plug.in/ns/extensions/ui#> .\n\
 @prefix log:  <http://lv2plug.in/ns/ext/log#> .\n\n");
@@ -85,11 +86,12 @@ int main (
     a lv2:InputPort ,\n\
       atom:AtomPort ;\n\
     atom:bufferType atom:Sequence ;\n\
+    atom:supports time:Position ;\n\
     lv2:index 0 ;\n\
     lv2:designation lv2:control ;\n\
     lv2:symbol \"control\" ;\n\
     lv2:name \"Control\" ;\n\
-    rdfs:comment \"GUI to plugin communication\" ;\n\
+    rdfs:comment \"GUI/host to plugin communication\" ;\n\
   ] , [\n\
     a lv2:OutputPort ,\n\
       atom:AtomPort ;\n\
@@ -363,9 +365,9 @@ int main (
   fprintf (f,
 "<" LFO_UI_URI ">\n\
   a ui:X11UI ;\n\
-  lv2:requiredFeature urid:map ;\n\
+  lv2:requiredFeature urid:map ,\n\
+                      ui:idleInterface ;\n\
   lv2:optionalFeature log:log ,\n\
-                      ui:idleInterface,\n\
                       ui:noUserResize ;\n\
   lv2:extensionData ui:idleInterface ,\n\
                     ui:showInterface ;\n\
