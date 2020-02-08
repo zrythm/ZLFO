@@ -188,33 +188,58 @@ sync_rate_to_float (
   SyncRate     rate,
   SyncRateType type)
 {
+  float r = 0.01f;
   switch (rate)
     {
     case SYNC_1_128:
-      return 1.f / 128.f;
+      r = 1.f / 128.f;
+      break;
     case SYNC_1_64:
-      return 1.f / 64.f;
+      r = 1.f / 64.f;
+      break;
     case SYNC_1_32:
-      return 1.f / 32.f;
+      r = 1.f / 32.f;
+      break;
     case SYNC_1_16:
-      return 1.f / 16.f;
+      r = 1.f / 16.f;
+      break;
     case SYNC_1_8:
-      return 1.f / 8.f;
+      r = 1.f / 8.f;
+      break;
     case SYNC_1_4:
-      return 1.f / 4.f;
+      r = 1.f / 4.f;
+      break;
     case SYNC_1_2:
-      return 1.f / 2.f;
+      r = 1.f / 2.f;
+      break;
     case SYNC_1_1:
-      return 1.f;
+      r = 1.f;
+      break;
     case SYNC_2_1:
-      return 2.f;
+      r = 2.f;
+      break;
     case SYNC_4_1:
-      return 4.f;
+      r = 4.f;
+      break;
     default:
       break;
     }
 
-  return 0.f;
+  switch (type)
+    {
+    case SYNC_TYPE_NORMAL:
+      break;
+    case SYNC_TYPE_DOTTED:
+      r *= 1.5f;
+      break;
+    case SYNC_TYPE_TRIPLET:
+      r *= (2.f / 3.f);
+      break;
+    default:
+      break;
+    }
+
+  return r;
 }
 
 static inline void
