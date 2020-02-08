@@ -602,6 +602,16 @@ run (
     MIN (*self->range_max, *self->range_min);
   float range = max_range - min_range;
 
+  /* for random out */
+  float rnd_point =
+    ((float) rand () / (float) ((float) RAND_MAX / 2.f)) -
+      1.f;
+  float prev_rnd_point = 0.f;
+  float m = 0.f;
+  uint32_t rnd_step = n_samples < 16 ? 1 : n_samples / 16;
+  /*uint32_t prev_rnd_x = 0;*/
+  uint32_t rnd_x = 0;
+
   for (uint32_t i = 0; i < n_samples; i++)
     {
       /* invert horizontally */
@@ -679,11 +689,24 @@ run (
       self->square_out[i] =
         self->saw_out[i] < 0.f ? -1.f : 1.f;
 
-      /* TODO */
-      self->rnd_out[i] = 0.f;
-      /*self->random[i] =*/
-        /*((float) rand () / (float) ((float) RAND_MAX / 2.f)) -*/
-          /*1.f;*/
+      /* for random, calculate 16 random points and
+       * connect them with straight lines */
+      /* FIXME this is not working properly */
+      if (i % rnd_step == 0)
+        {
+          prev_rnd_point = rnd_point;
+          /*prev_rnd_x = rnd_x;*/
+          rnd_point =
+            ((float) rand () /
+             (float) ((float) RAND_MAX / 2.f)) -
+              1.f;
+          rnd_x = i / rnd_step;
+
+          /* get slope */
+          m =
+            (rnd_point - prev_rnd_point) / (rnd_step);
+        }
+      self->rnd_out[i] = m * (i - rnd_x) + rnd_point;
 
       /* invert vertically */
       if (*self->vinvert >= 0.01f)
