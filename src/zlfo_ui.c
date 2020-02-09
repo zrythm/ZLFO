@@ -1125,97 +1125,130 @@ mid_region_bg_draw_cb (
     zlfo_ui_theme.line.green,
     zlfo_ui_theme.line.blue, 0.3);
   cairo_set_line_width (cr, 3);
-  if (self->visible_waves & WAVE_SINE)
+  for (int i = 0; i < GRID_WIDTH; i++)
     {
+      /* from 0 to GRID_WIDTH */
+      double xval = (double) i;
 
-      for (int i = 0; i < GRID_WIDTH; i++)
+      /* invert horizontally */
+      if (self->hinvert)
         {
-          /* from 0 to GRID_WIDTH */
-          double xval = (double) i;
-
-          /* invert horizontally */
-          if (self->hinvert)
-            {
-              xval = (double) (GRID_WIDTH - i);
-            }
-
-          /* shift */
-          if (self->shift >= 0.5f)
-            {
-              xval +=
-                /* shift ratio */
-                (((double) self->shift - 0.50) *
-                   2.0) *
-                 /* half the period */
-                (GRID_WIDTH / 2.0);
-
-              /* adjust */
-              while (xval >= GRID_WIDTH)
-                {
-                  xval -= GRID_WIDTH;
-                }
-            }
-          else
-            {
-              xval -=
-                /* shift ratio */
-                ((0.50 - (double) self->shift) *
-                   2.0) *
-                /* half a period */
-                (GRID_WIDTH / 2.0);
-
-              /* adjust */
-              while (xval < 0.0)
-                {
-                  xval += GRID_WIDTH;
-                }
-            }
-
-          double samples =
-            (xval / GRID_WIDTH) *
-            (double) self->common.period_size;
-
-          /* calculate sine */
-          double sine =
-            sin (
-              (samples *
-                (double)
-                self->common.sine_multiplier));
-
-          /* invert vertically */
-          if (self->vinvert)
-            {
-              sine = - sine;
-            }
-
-          /* adjust range */
-          sine =
-            min_range +
-          ((sine + 1.0) / 2.0) * range;
-
-          double draw_sine =
-            ((sine + 1.0) * GRID_HEIGHT) / 2.0;
-
-          /* invert because higher Y means lower
-           * in cairo */
-          draw_sine = GRID_HEIGHT - draw_sine;
-
-          /* draw line */
-          cairo_move_to (
-            cr,
-            widget->rect.x + GRID_HPADDING + i,
-            widget->rect.y + GRID_YSTART_OFFSET +
-              draw_sine);
-          cairo_line_to (
-            cr,
-            widget->rect.x + GRID_HPADDING + i + 1,
-            widget->rect.y + GRID_YSTART_OFFSET +
-              draw_sine + 1);
-          cairo_stroke (cr);
+          xval = (double) (GRID_WIDTH - i);
         }
-    }
-  if (self->visible_waves & WAVE_SAW)
-    {
+
+      /* shift */
+      if (self->shift >= 0.5f)
+        {
+          xval +=
+            /* shift ratio */
+            (((double) self->shift - 0.50) *
+               2.0) *
+             /* half the period */
+            (GRID_WIDTH / 2.0);
+
+          /* adjust */
+          while (xval >= GRID_WIDTH)
+            {
+              xval -= GRID_WIDTH;
+            }
+        }
+      else
+        {
+          xval -=
+            /* shift ratio */
+            ((0.50 - (double) self->shift) *
+               2.0) *
+            /* half a period */
+            (GRID_WIDTH / 2.0);
+
+          /* adjust */
+          while (xval < 0.0)
+            {
+              xval += GRID_WIDTH;
+            }
+        }
+
+      double samples =
+        (xval / GRID_WIDTH) *
+        (double) self->common.period_size;
+
+#define DRAW_VAL(val) \
+  /* invert vertically */ \
+  if (self->vinvert) \
+    { \
+      val = - val; \
+    } \
+ \
+  /* adjust range */ \
+  val = \
+    min_range + \
+  ((val + 1.0) / 2.0) * range; \
+ \
+  double draw_val = \
+    ((val + 1.0) * GRID_HEIGHT) / 2.0; \
+ \
+  /* invert because higher Y means lower \
+   * in cairo */ \
+  draw_val = GRID_HEIGHT - draw_val; \
+ \
+  /* draw line */ \
+  cairo_move_to ( \
+    cr, \
+    widget->rect.x + GRID_HPADDING + i, \
+    widget->rect.y + GRID_YSTART_OFFSET + \
+      draw_val); \
+  cairo_line_to ( \
+    cr, \
+    widget->rect.x + GRID_HPADDING + i + 1, \
+    widget->rect.y + GRID_YSTART_OFFSET + \
+      draw_val + 1); \
+  cairo_stroke (cr)
+
+      /* calculate sine */
+      double sine =
+        sin (
+          (samples *
+            (double)
+            self->common.sine_multiplier));
+
+      /* calculate saw */
+      double saw =
+        fmod (
+          samples *
+            (double)
+            self->common.saw_multiplier,
+          1.0) * 2.0 - 1.0;
+      saw = - saw;
+
+      /* triangle can be calculated based on the
+       * saw */
+      double triangle;
+      if (saw > 0.0)
+        triangle =
+          ((- saw) + 1.0) * 2.0 - 1.0;
+      else
+        triangle =
+          (saw + 1.0) * 2.0 - 1.0;
+
+      /* square too */
+      double square = saw < 0.0 ? -1.0 : 1.0;
+
+      if (self->visible_waves & WAVE_SINE)
+        {
+          DRAW_VAL (sine);
+        }
+      if (self->visible_waves & WAVE_SAW)
+        {
+          DRAW_VAL (saw);
+        }
+      if (self->visible_waves & WAVE_TRIANGLE)
+        {
+          DRAW_VAL (triangle);
+        }
+      if (self->visible_waves & WAVE_SQUARE)
+        {
+          DRAW_VAL (square);
+        }
     }
 
   /* draw node curves */
