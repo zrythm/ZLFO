@@ -90,6 +90,8 @@
 #define GRID_HEIGHT \
   (GRID_YEND_OFFSET - GRID_YSTART_OFFSET)
 
+#define GRAPH_OVERLAY_ALPHA 0.6
+
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
 
@@ -335,7 +337,7 @@ on_btn_clicked (
   ZtkWidget * widget,
   DrawData *  data)
 {
-  ztk_debug ("%s", "Button clicked!");
+  /*ztk_debug ("Button clicked!");*/
 
   ZLfoUi * self = data->zlfo_ui;
   switch (data->type)
@@ -1027,10 +1029,11 @@ draw_graph_curves (
   double range = max_range - min_range;
 
   cairo_set_source_rgba (
-    cr, zlfo_ui_theme.line.red,
-    zlfo_ui_theme.line.green,
-    zlfo_ui_theme.line.blue, 1);
-  cairo_set_line_cap (cr, CAIRO_LINE_CAP_ROUND);
+    cr, zlfo_ui_theme.left_button_click.red,
+    zlfo_ui_theme.left_button_click.green,
+    zlfo_ui_theme.left_button_click.blue,
+    GRAPH_OVERLAY_ALPHA);
+  cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
   cairo_set_line_width (cr, 6);
   double prev_draw_sine,
          prev_draw_triangle,
@@ -1164,6 +1167,180 @@ draw_graph_curves (
           DRAW_VAL (square);
         }
     }
+#undef DRAW_VAL
+
+  /* draw node curves */
+  zlfo_ui_theme_set_cr_color (cr, line);
+  cairo_set_line_width (cr, 6);
+  for (int i = 0; i < self->num_nodes - 1; i++)
+    {
+      ZtkWidget * nodew = self->node_widgets[i];
+      ZtkWidget * next_nodew =
+        self->node_widgets[i + 1];
+
+      cairo_move_to (
+        cr,
+        nodew->rect.x + nodew->rect.width / 2,
+        nodew->rect.y + nodew->rect.height / 2);
+      cairo_line_to (
+        cr,
+        next_nodew->rect.x +
+          next_nodew->rect.width / 2,
+        next_nodew->rect.y +
+          next_nodew->rect.height / 2);
+      cairo_stroke (cr);
+    }
+}
+
+/**
+ * Draws the graphs in step mode.
+ */
+static void
+draw_graph_steps (
+  ZLfoUi *  self,
+  cairo_t * cr)
+{
+  double max_range =
+    MAX (self->range_max, self->range_min);
+  double min_range =
+    MIN (self->range_max, self->range_min);
+  double range = max_range - min_range;
+
+  cairo_set_source_rgba (
+    cr, zlfo_ui_theme.left_button_click.red,
+    zlfo_ui_theme.left_button_click.green,
+    zlfo_ui_theme.left_button_click.blue,
+    GRAPH_OVERLAY_ALPHA);
+  cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
+  cairo_set_line_width (cr, GRID_SPACE);
+  for (int i = GRID_SPACE / 2;
+       i < GRID_WIDTH; i += GRID_SPACE)
+    {
+      /* from 0 to GRID_WIDTH */
+      double xval = (double) i;
+
+      /* invert horizontally */
+      if (self->hinvert)
+        {
+          xval = (double) (GRID_WIDTH - i);
+        }
+
+      /* shift */
+      if (self->shift >= 0.5f)
+        {
+          xval +=
+            /* shift ratio */
+            (((double) self->shift - 0.50) *
+               2.0) *
+             /* half the period */
+            (GRID_WIDTH / 2.0);
+
+          /* adjust */
+          while (xval >= GRID_WIDTH)
+            {
+              xval -= GRID_WIDTH;
+            }
+        }
+      else
+        {
+          xval -=
+            /* shift ratio */
+            ((0.50 - (double) self->shift) *
+               2.0) *
+            /* half a period */
+            (GRID_WIDTH / 2.0);
+
+          /* adjust */
+          while (xval < 0.0)
+            {
+              xval += GRID_WIDTH;
+            }
+        }
+
+      double samples =
+        (xval / GRID_WIDTH) *
+        (double) self->common.period_size;
+
+#define DRAW_VAL(val) \
+  /* invert vertically */ \
+  if (self->vinvert) \
+    { \
+      val = - val; \
+    } \
+ \
+  /* adjust range */ \
+  val = \
+    min_range + \
+  ((val + 1.0) / 2.0) * range; \
+ \
+  double draw_val = \
+    ((val + 1.0) * GRID_HEIGHT) / 2.0; \
+ \
+  /* invert because higher Y means lower \
+   * in cairo */ \
+  draw_val = GRID_HEIGHT - draw_val; \
+ \
+  if (i != 0) \
+    { \
+      /* draw line */ \
+      cairo_move_to ( \
+        cr, \
+        GRID_XSTART_GLOBAL + i, \
+        GRID_YSTART_GLOBAL + GRID_HEIGHT); \
+      cairo_line_to ( \
+        cr, \
+        GRID_XSTART_GLOBAL + i, \
+        GRID_YSTART_GLOBAL + draw_val); \
+      cairo_stroke (cr); \
+    }
+
+      /* calculate sine */
+      double sine =
+        sin (
+          (samples *
+            (double)
+            self->common.sine_multiplier));
+
+      /* calculate saw */
+      double saw =
+        fmod (
+          samples *
+            (double)
+            self->common.saw_multiplier,
+          1.0) * 2.0 - 1.0;
+      saw = - saw;
+
+      /* triangle can be calculated based on the
+       * saw */
+      double triangle;
+      if (saw > 0.0)
+        triangle =
+          ((- saw) + 1.0) * 2.0 - 1.0;
+      else
+        triangle =
+          (saw + 1.0) * 2.0 - 1.0;
+
+      /* square too */
+      double square = saw < 0.0 ? - 1.0 : 1.0;
+
+      if (self->visible_waves & WAVE_SINE)
+        {
+          DRAW_VAL (sine);
+        }
+      if (self->visible_waves & WAVE_SAW)
+        {
+          DRAW_VAL (saw);
+        }
+      if (self->visible_waves & WAVE_TRIANGLE)
+        {
+          DRAW_VAL (triangle);
+        }
+      if (self->visible_waves & WAVE_SQUARE)
+        {
+          DRAW_VAL (square);
+        }
+    }
+#undef DRAW_VAL
 
   /* draw node curves */
   zlfo_ui_theme_set_cr_color (cr, line);
@@ -1292,6 +1469,7 @@ mid_region_bg_draw_cb (
   /* draw other visible waves in the back */
   if (self->step_mode)
     {
+      draw_graph_steps (self, cr);
     }
   else
     {
