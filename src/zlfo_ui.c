@@ -89,6 +89,7 @@
     (TOP_BTN_HEIGHT + 2 + GRID_YEND_OFFSET)
 #define GRID_HEIGHT \
   (GRID_YEND_OFFSET - GRID_YSTART_OFFSET)
+#define RANGE_STARTX 461
 
 #define GRAPH_OVERLAY_ALPHA 0.6
 
@@ -1775,7 +1776,7 @@ range_draw_cb (
 
   /* draw range */
   double width = RANGE_POINT_WIDTH;
-  double start_x = 460.3 - width / 2;
+  double start_x = RANGE_STARTX - width / 2;
   double start_y = 83 - width / 2;
   double range_height = RANGE_HEIGHT;
   zlfo_ui_theme_set_cr_color (
@@ -1888,7 +1889,7 @@ add_range (
 {
   /* add min point */
   double point_start_x =
-    460.3 - RANGE_POINT_WIDTH / 2;
+    RANGE_STARTX - RANGE_POINT_WIDTH / 2;
   double point_start_y = 83 - RANGE_POINT_WIDTH / 2;
   ZtkRect rect = {
     point_start_x, point_start_y,
