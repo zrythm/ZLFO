@@ -160,6 +160,14 @@ int main (
           mini = 0;
           maxi = SYNC_4_1;
           break;
+        case ZLFO_GRID_STEP:
+          strcpy (symbol, "grid_step");
+          strcpy (name, "Grid step");
+          type = PORT_TYPE_INT;
+          defi = GRID_STEP_EIGHTH;
+          mini = 0;
+          maxi = GRID_STEP_THIRTY_SECOND;
+          break;
         case ZLFO_SYNC_RATE_TYPE:
           strcpy (symbol, "sync_rate_type");
           strcpy (name, "Sync rate type");

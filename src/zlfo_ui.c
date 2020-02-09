@@ -171,6 +171,7 @@ typedef struct ZLfoUi
   int              vinvert;
   float            sync_rate;
   float            sync_rate_type;
+  float            grid_step;
   float            nodes[16][3];
   int              num_nodes;
 
@@ -329,6 +330,43 @@ add_bg_widget (
     self->app, (ZtkWidget *) da, 0);
 }
 
+typedef struct ComboBoxElement
+{
+  int           id;
+  char          label[600];
+  ZtkComboBox * combo;
+  ZLfoUi *      zlfo_ui;
+} ComboBoxElement;
+
+static void
+sync_rate_type_activate_cb (
+  ZtkWidget *       widget,
+  ComboBoxElement * el)
+{
+  ztk_debug (
+    "activate %p %d %s", el->combo,
+    el->id, el->label);
+  ZLfoUi * self = el->zlfo_ui;
+  self->sync_rate_type = (float) el->id;
+  SEND_PORT_EVENT (
+    self, ZLFO_SYNC_RATE_TYPE,
+    self->sync_rate_type);
+}
+
+static void
+grid_step_activate_cb (
+  ZtkWidget *       widget,
+  ComboBoxElement * el)
+{
+  ztk_debug (
+    "activate %p %d %s", el->combo,
+    el->id, el->label);
+  ZLfoUi * self = el->zlfo_ui;
+  self->grid_step = (float) el->id;
+  SEND_PORT_EVENT (
+    self, ZLFO_GRID_STEP, self->grid_step);
+}
+
 /**
  * Called when one of the buttons was clicked.
  */
@@ -398,6 +436,52 @@ on_btn_clicked (
     case DATA_TYPE_BTN_GRID:
       switch (data->val)
         {
+        case GRID_BTN_SNAP:
+          {
+            ZtkComboBox * combo =
+              ztk_combo_box_new (
+                widget, 0, 0);
+            ztk_app_add_widget (
+              widget->app, (ZtkWidget *) combo,
+              100);
+            for (int i = 0; i < NUM_GRID_STEPS; i++)
+              {
+                ComboBoxElement * el =
+                  calloc (
+                    1, sizeof (ComboBoxElement));
+                el->id = i;
+                el->combo = combo;
+                el->zlfo_ui = self;
+                switch (i)
+                  {
+                  case GRID_STEP_FULL:
+                    strcpy (el->label, "full");
+                    break;
+                  case GRID_STEP_HALF:
+                    strcpy (el->label, "1/2");
+                    break;
+                  case GRID_STEP_FOURTH:
+                    strcpy (el->label, "1/4");
+                    break;
+                  case GRID_STEP_EIGHTH:
+                    strcpy (el->label, "1/8");
+                    break;
+                  case GRID_STEP_SIXTEENTH:
+                    strcpy (el->label, "1/16");
+                    break;
+                  case GRID_STEP_THIRTY_SECOND:
+                    strcpy (el->label, "1/32");
+                    break;
+                  default:
+                    break;
+                  }
+                ztk_combo_box_add_text_element (
+                  combo, el->label,
+                  (ZtkWidgetActivateCallback)
+                  grid_step_activate_cb, el);
+              }
+          }
+          break;
         case GRID_BTN_HMIRROR:
           self->hinvert = !self->hinvert;
           SEND_PORT_EVENT (
@@ -413,29 +497,6 @@ on_btn_clicked (
     default:
       break;
     }
-}
-
-typedef struct ComboBoxElement
-{
-  int           id;
-  char          label[600];
-  ZtkComboBox * combo;
-  ZLfoUi *      zlfo_ui;
-} ComboBoxElement;
-
-static void
-sync_rate_type_activate_cb (
-  ZtkWidget *       widget,
-  ComboBoxElement * el)
-{
-  ztk_debug (
-    "activate %p %d %s", el->combo,
-    el->id, el->label);
-  ZLfoUi * self = el->zlfo_ui;
-  self->sync_rate_type = (float) el->id;
-  SEND_PORT_EVENT (
-    self, ZLFO_SYNC_RATE_TYPE,
-    self->sync_rate_type);
 }
 
 static void
@@ -1206,15 +1267,28 @@ draw_graph_steps (
     MIN (self->range_max, self->range_min);
   double range = max_range - min_range;
 
+  int grid_step_divisor =
+    grid_step_to_divisor (
+      (GridStep) self->grid_step);
+  int step_px = GRID_WIDTH / grid_step_divisor;
+  if (GRID_WIDTH % grid_step_divisor != 0)
+    {
+      ztk_warning (
+        "Grid width (%d) is not fully divisible "
+        "by the grid step (%d)",
+        GRID_WIDTH, grid_step_divisor);
+      return;
+    }
+
   cairo_set_source_rgba (
     cr, zlfo_ui_theme.left_button_click.red,
     zlfo_ui_theme.left_button_click.green,
     zlfo_ui_theme.left_button_click.blue,
     GRAPH_OVERLAY_ALPHA);
   cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
-  cairo_set_line_width (cr, GRID_SPACE);
-  for (int i = GRID_SPACE / 2;
-       i < GRID_WIDTH; i += GRID_SPACE)
+  cairo_set_line_width (cr, step_px);
+  for (int i = step_px / 2; i < GRID_WIDTH;
+       i += step_px)
     {
       /* from 0 to GRID_WIDTH */
       double xval = (double) i;
@@ -2395,6 +2469,10 @@ port_event (
           break;
         case ZLFO_FREE_RUNNING:
           self->freerun =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_GRID_STEP:
+          self->grid_step =
             (int) * (const float *) buffer;
           break;
         case ZLFO_SYNC_RATE:

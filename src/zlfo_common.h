@@ -100,6 +100,7 @@ typedef enum PortIndex
   ZLFO_RANGE_MAX,
   ZLFO_STEP_MODE,
   ZLFO_FREE_RUNNING,
+  ZLFO_GRID_STEP,
   ZLFO_HINVERT,
   ZLFO_VINVERT,
   ZLFO_NODE_1_POS,
@@ -159,6 +160,17 @@ typedef enum PortIndex
   ZLFO_CUSTOM_OUT,
   NUM_ZLFO_PORTS,
 } PortIndex;
+
+typedef enum GridStep
+{
+  GRID_STEP_FULL,
+  GRID_STEP_HALF,
+  GRID_STEP_FOURTH,
+  GRID_STEP_EIGHTH,
+  GRID_STEP_SIXTEENTH,
+  GRID_STEP_THIRTY_SECOND,
+  NUM_GRID_STEPS,
+} GridStep;
 
 typedef enum SyncRate
 {

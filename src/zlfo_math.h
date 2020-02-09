@@ -94,6 +94,45 @@ sync_rate_to_float (
 }
 
 /**
+ * Returns the number to use for dividing by the
+ * grid step.
+ *
+ * Eg., when grid step is HALF, this returns 2, the
+ * bottom half of "1/2".
+ */
+static inline int
+grid_step_to_divisor (
+  GridStep step)
+{
+  int ret = 0;
+  switch (step)
+    {
+    case GRID_STEP_FULL:
+      ret = 1;
+      break;
+    case GRID_STEP_HALF:
+      ret = 2;
+      break;
+    case GRID_STEP_FOURTH:
+      ret = 4;
+      break;
+    case GRID_STEP_EIGHTH:
+      ret = 8;
+      break;
+    case GRID_STEP_SIXTEENTH:
+      ret = 16;
+      break;
+    case GRID_STEP_THIRTY_SECOND:
+      ret = 32;
+      break;
+    default:
+      break;
+    }
+
+  return ret;
+}
+
+/**
  * Gets the y value for a node at the given X coord.
  *
  * See https://stackoverflow.com/questions/17623152/how-map-tween-a-number-based-on-a-dynamic-curve
