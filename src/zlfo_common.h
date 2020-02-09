@@ -28,10 +28,11 @@
 
 #include "config.h"
 
-#include <math.h>
 #include <string.h>
 
 #include "lv2/atom/atom.h"
+#include "lv2/atom/forge.h"
+#include "lv2/core/lv2.h"
 #include "lv2/log/log.h"
 #include "lv2/urid/urid.h"
 #include "lv2/time/time.h"
@@ -63,12 +64,17 @@ typedef struct ZLfoUris
   LV2_URID time_frame;
   LV2_URID time_speed;
 
-  /* custom URIs */
-  /* object */
+  /* custom URIs for communication */
+
+  /** The object URI. */
   LV2_URID ui_state;
+
+  /* object property URIs */
   LV2_URID ui_state_current_sample;
   LV2_URID ui_state_period_size;
   LV2_URID ui_state_samplerate;
+  LV2_URID ui_state_saw_multiplier;
+  LV2_URID ui_state_sine_multiplier;
 
   /** Messages for UI on/off. */
   LV2_URID ui_on;
@@ -183,64 +189,64 @@ typedef enum CurveAlgorithm
   CURVE_ALGORITHM_SUPERELLIPSE,
 } CurveAlgorithm;
 
-static inline float
-sync_rate_to_float (
-  SyncRate     rate,
-  SyncRateType type)
+typedef struct HostPosition
 {
-  float r = 0.01f;
-  switch (rate)
-    {
-    case SYNC_1_128:
-      r = 1.f / 128.f;
-      break;
-    case SYNC_1_64:
-      r = 1.f / 64.f;
-      break;
-    case SYNC_1_32:
-      r = 1.f / 32.f;
-      break;
-    case SYNC_1_16:
-      r = 1.f / 16.f;
-      break;
-    case SYNC_1_8:
-      r = 1.f / 8.f;
-      break;
-    case SYNC_1_4:
-      r = 1.f / 4.f;
-      break;
-    case SYNC_1_2:
-      r = 1.f / 2.f;
-      break;
-    case SYNC_1_1:
-      r = 1.f;
-      break;
-    case SYNC_2_1:
-      r = 2.f;
-      break;
-    case SYNC_4_1:
-      r = 4.f;
-      break;
-    default:
-      break;
-    }
+  float     bpm;
 
-  switch (type)
-    {
-    case SYNC_TYPE_NORMAL:
-      break;
-    case SYNC_TYPE_DOTTED:
-      r *= 1.5f;
-      break;
-    case SYNC_TYPE_TRIPLET:
-      r *= (2.f / 3.f);
-      break;
-    default:
-      break;
-    }
+  /** Current global frame. */
+  long      frame;
 
-  return r;
-}
+  /** Transport speed (0.0 is stopped, 1.0 is
+   * normal playback, -1.0 is reverse playback,
+   * etc.). */
+  float     speed;
+
+  int       beat_unit;
+} HostPosition;
+
+/**
+ * Group of variables needed by both the DSP and
+ * the UI.
+ */
+typedef struct ZLfoCommon
+{
+  HostPosition   host_pos;
+
+  /** Log feature. */
+  LV2_Log_Log *        log;
+
+  /** Map feature. */
+  LV2_URID_Map *       map;
+
+  /** Atom forge. */
+  LV2_Atom_Forge forge;
+
+  /** URIs. */
+  ZLfoUris         uris;
+
+  /** Plugin samplerate. */
+  double        samplerate;
+
+  /** Size of 1 LFO period in samples. */
+  long          period_size;
+
+  /**
+   * Current sample index in the period.
+   *
+   * This should be sent to the UI.
+   */
+  long          current_sample;
+
+  /**
+   * Sine multiplier.
+   *
+   * This is a pre-calculated variable that is used
+   * when calculating the sine value.
+   */
+  float         sine_multiplier;
+
+  float         saw_multiplier;
+} ZLfoCommon;
 
 static inline void
 map_uris (
@@ -280,11 +286,68 @@ map_uris (
     ui_state_current_sample,
     LFO_URI "#ui_state_current_sample");
   MAP (
+    ui_state_sine_multiplier,
+    LFO_URI "#ui_state_sine_multiplier");
+  MAP (
+    ui_state_saw_multiplier,
+    LFO_URI "#ui_state_saw_multiplier");
+  MAP (
     ui_state_period_size,
     LFO_URI "#ui_state_period_size");
   MAP (
     ui_state_samplerate,
     LFO_URI "#ui_state_samplerate");
+}
+
+/**
+ * Updates the position inside HostPosition with
+ * the given time_Position atom object.
+ */
+static inline void
+update_position_from_atom_obj (
+  HostPosition *          host_pos,
+  ZLfoUris *              uris,
+  const LV2_Atom_Object * obj)
+{
+  /* Received new transport position/speed */
+  LV2_Atom *beat = NULL,
+           *bpm = NULL,
+           *beat_unit = NULL,
+           *speed = NULL,
+           *frame = NULL;
+  lv2_atom_object_get (
+    obj, uris->time_barBeat, &beat,
+    uris->time_beatUnit, &beat_unit,
+    uris->time_beatsPerMinute, &bpm,
+    uris->time_frame, &frame,
+    uris->time_speed, &speed, NULL);
+  if (bpm && bpm->type == uris->atom_Float)
+    {
+      /* Tempo changed, update BPM */
+      host_pos->bpm = ((LV2_Atom_Float*)bpm)->body;
+     }
+  if (speed && speed->type == uris->atom_Float)
+    {
+      /* Speed changed, e.g. 0 (stop) to 1 (play) */
+      host_pos->speed =
+        ((LV2_Atom_Float *) speed)->body;
+    }
+  if (beat_unit && beat_unit->type == uris->atom_Int)
+    {
+      host_pos->beat_unit =
+        ((LV2_Atom_Int *) beat_unit)->body;
+    }
+  if (frame && frame->type == uris->atom_Long)
+    {
+      host_pos->frame =
+        ((LV2_Atom_Int *) frame)->body;
+    }
+  if (beat && beat->type == uris->atom_Float)
+    {
+      /*const float bar_beats =*/
+        /*((LV2_Atom_Float *) beat)->body;*/
+      /*self->beat_offset = fmodf (bar_beats, 1.f);*/
+    }
 }
 
 /**
@@ -316,62 +379,6 @@ log_error (
     }
   va_end (args);
 }
-
-/**
- * Gets the y value for a node at the given X coord.
- *
- * See https://stackoverflow.com/questions/17623152/how-map-tween-a-number-based-on-a-dynamic-curve
- * @param x X-coordinate.
- * @param curviness Curviness variable (1.0 is
- *   a straight line, 0.0 is full curved).
- * @param start_higher Start at higher point.
- */
-double
-get_y_normalized (
-  double x,
-  double curviness,
-  CurveAlgorithm algo,
-  int    start_higher,
-  int    curve_up);
-
-#ifdef pow
-double
-get_y_normalized (
-  double x,
-  double curviness,
-  CurveAlgorithm algo,
-  int    start_higher,
-  int    curve_up)
-{
-  if (!start_higher)
-    x = 1.0 - x;
-  if (curve_up)
-    x = 1.0 - x;
-
-  double val;
-  switch (algo)
-    {
-    case CURVE_ALGORITHM_EXPONENT:
-      val =
-        pow (x, curviness);
-      break;
-    case CURVE_ALGORITHM_SUPERELLIPSE:
-      val =
-        pow (
-          1.0 - pow (x, curviness),
-          (1.0 / curviness));
-      break;
-    }
-  if (curve_up)
-    {
-      val = 1.0 - val;
-    }
-  return val;
-
-  fprintf (
-    stderr, "This line should not be reached");
-}
-#endif
 
 #ifndef MAX
 # define MAX(x,y) (x > y ? x : y)

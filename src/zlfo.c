@@ -25,17 +25,14 @@
 #include <stdio.h>
 
 #include "zlfo_common.h"
-
-#include "lv2/atom/forge.h"
-#include "lv2/log/log.h"
-#include "lv2/core/lv2.h"
+#include "zlfo_math.h"
 
 #define math_floats_equal(a,b) \
   (a > b ? \
    (a - b) < 0.0001f : \
    (b - a) < 0.0001f)
 
-static const float PI = (float) M_PI;
+#define IS_FREERUN(x) (*x->freerun > 0.001f)
 
 typedef struct ZLFO
 {
@@ -67,87 +64,29 @@ typedef struct ZLFO
   float *       rnd_out;
   float *       custom_out;
 
-  /** Transport speed (0.0 is stopped, 1.0 is
-   * normal playback, -1.0 is reverse playback,
-   * etc.). */
-  float         speed;
-
-  float         bpm;
-
-  /** Frames per beat. */
-  float         frames_per_beat;
-
-  int           beat_unit;
-
   /** This is how far we are inside a beat, from 0.0
    * to 1.0. */
-  float         beat_offset;
+  /*float         beat_offset;*/
 
-  /**
-   * Effective frequency.
-   *
-   * This is either the free-running frequency,
-   * or the frequency corresponding to the current
-   * sync rate.
-   */
-  float         effective_freq;
+  ZLfoCommon    common;
 
-  /* --- values in the last run --- */
-
-  /** Frequency during the last run. */
-  float         last_freq;
-  float         last_sync_rate;
-  float         last_sync_rate_type;
-
-  /**
-   * Whether the plugin was freerunning in the
-   * last cycle.
-   *
-   * This is used to detect changes in freerunning/
-   * sync.
-   */
-  int           was_freerunning;
-
-  /** Plugin samplerate. */
-  double        samplerate;
-
-  /** Size of 1 LFO period in samples. */
-  long          period_size;
-
-  /**
-   * Current sample index in the period.
-   *
-   * This should be sent to the UI.
-   */
-  long          current_sample;
-
-  /** Global current sample in the host. */
-  long          host_current_sample;
-
-  /** Atom forge. */
-  LV2_Atom_Forge forge;
+  /* FIXME this can be a local variable */
   LV2_Atom_Forge_Frame notify_frame;
-
-  /** Log feature. */
-  LV2_Log_Log *        log;
-
-  /** Map feature. */
-  LV2_URID_Map *       map;
-
-  ZLfoUris      uris;
-
-  /**
-   * Sine multiplier.
-   *
-   * This is a pre-calculated variable that is used
-   * when calculating the sine value.
-   */
-  float         sine_multiplier;
-
-  float         saw_up_multiplier;
 
   /** Whether the UI is active or not. */
   int           ui_active;
+
+  /** Temporary variables. */
+
+  /* whether the plugin was freerunning in the
+   * last cycle. this is used to detect changes
+   * in freerunning/sync. */
+  int was_freerunning;
+
+  /** Frequency during the last run. */
+  float last_freq;
+  float last_sync_rate;
+  float last_sync_rate_type;
 
 } ZLFO;
 
@@ -160,7 +99,7 @@ instantiate (
 {
   ZLFO * self = calloc (1, sizeof (ZLFO));
 
-  self->samplerate = rate;
+  self->common.samplerate = rate;
 
 #define HAVE_FEATURE(x) \
   (!strcmp(features[i]->URI, x))
@@ -169,64 +108,31 @@ instantiate (
     {
       if (HAVE_FEATURE (LV2_URID__map))
         {
-          self->map =
+          self->common.map =
             (LV2_URID_Map*) features[i]->data;
         }
       else if (HAVE_FEATURE (LV2_LOG__log))
         {
-          self->log =
+          self->common.log =
             (LV2_Log_Log *) features[i]->data;
         }
     }
 #undef HAVE_FEATURE
 
-  if (!self->map)
+  if (!self->common.map)
     {
       fprintf (stderr, "Missing feature urid:map\n");
       return NULL;
     }
 
   /* map uris */
-  map_uris (self->map, &self->uris);
+  map_uris (self->common.map, &self->common.uris);
 
-  lv2_atom_forge_init (&self->forge, self->map);
+  /* init atom forge */
+  lv2_atom_forge_init (
+    &self->common.forge, self->common.map);
 
   return (LV2_Handle) self;
-}
-
-/**
- * Gets the current frequency.
- */
-static float
-get_freq (
-  ZLFO * self)
-{
-  if (*self->freerun > 0.f)
-    {
-      return *self->freq;
-    }
-  else
-    {
-      /* if host does not send position info,
-       * send frequency back instead */
-      if (self->beat_unit == 0)
-        {
-          log_error (
-            self->log, &self->uris,
-            "Have not received time info from host "
-            "yet. Beat unit is unknown.");
-          return * self->freq;
-        }
-
-      /* bpm / (60 * BU * sync note) */
-      float sync_note =
-        sync_rate_to_float (
-          (SyncRate) *self->sync_rate,
-          (SyncRateType) *self->sync_rate_type);
-      return
-        self->bpm /
-        (60.f * self->beat_unit * sync_note);
-    }
 }
 
 static void
@@ -237,94 +143,32 @@ recalc_multipliers (
   if (!self->freerun)
     return;
 
-  self->effective_freq = get_freq (self);
+  float sync_rate_float =
+    sync_rate_to_float (
+      *self->sync_rate,
+      *self->sync_rate_type);
 
-  /*
-   * F = frequency
-   * X = samples processed
-   * SR = sample rate
+  /**
+   * Effective frequency.
    *
-   * First, get the radians.
-   * ? radians =
-   *   (2 * PI) radians per LFO cycle *
-   *   F cycles per second *
-   *   (1 / SR samples per second) *
-   *   X samples
-   *
-   * Then the LFO value is the sine of
-   * (radians % (2 * PI)).
-   *
-   * This multiplier handles the part known by now
-   * and the first part of the calculation should
-   * become:
-   * ? radians = X samples * sine_multiplier
+   * This is either the free-running frequency,
+   * or the frequency corresponding to the current
+   * sync rate.
    */
-  self->sine_multiplier =
-    (self->effective_freq /
-     (float) self->samplerate) *
-    2.f * PI;
+  float effective_freq =
+    get_effective_freq (
+      IS_FREERUN (self), *self->freq,
+      &self->common.host_pos, sync_rate_float);
 
-  /*
-   * F = frequency
-   * X = samples processed
-   * SR = sample rate
-   *
-   * First, get the value.
-   * ? value =
-   *   (1 value per LFO cycle *
-   *    F cycles per second *
-   *    1 / SR samples per second *
-   *    X samples) % 1
-   *
-   * Then the LFO value is value * 2 - 1 (to make
-   * it start from -1 and end at 1).
-   *
-   * This multiplier handles the part known by now and the
-   * first part of the calculation should become:
-   * ? value = ((X samples * saw_multiplier) % 1) * 2 - 1
-   */
-  self->saw_up_multiplier =
-    (self->effective_freq /
-     (float) self->samplerate);
-
-  if (*self->freerun > 0.0001f) /* freerunning */
-    {
-      self->period_size =
-        (uint32_t)
-        ((float) self->samplerate /
-         self->effective_freq);
-      self->current_sample = 0;
-    }
-  else /* synced */
-    {
-      if (self->beat_unit == 0)
-        {
-          /* set reasonable values if host does not
-           * send time info */
-          log_error (
-            self->log, &self->uris,
-            "Host did not send time info. Beat "
-            "unit is unknown.");
-          self->period_size =
-            (uint32_t)
-            ((float) self->samplerate /
-             self->effective_freq);
-          self->current_sample = 0;
-        }
-      else
-        {
-          self->period_size =
-            (uint32_t)
-            (self->frames_per_beat *
-            self->beat_unit *
-            sync_rate_to_float (
-              *self->sync_rate,
-              *self->sync_rate_type));
-          self->current_sample =
-            (self->host_current_sample %
-                self->period_size);
-        }
-    }
+  recalc_vars (
+    IS_FREERUN (self),
+    &self->common.sine_multiplier,
+    &self->common.saw_multiplier,
+    &self->common.period_size,
+    &self->common.current_sample,
+    &self->common.host_pos, effective_freq,
+    sync_rate_float,
+    (float) self->common.samplerate);
 }
 
 static void
@@ -422,51 +266,120 @@ connect_port (
 }
 
 static void
+send_position_to_ui (
+  ZLFO *  self)
+{
+  /* forge container object of type time_Position */
+  lv2_atom_forge_frame_time (&self->common.forge, 0);
+  LV2_Atom_Forge_Frame frame;
+  lv2_atom_forge_object (
+    &self->common.forge, &frame, 0,
+    self->common.uris.time_Position);
+
+  /* append property for bpm */
+  lv2_atom_forge_key (
+    &self->common.forge,
+    self->common.uris.time_beatsPerMinute);
+  lv2_atom_forge_float (
+    &self->common.forge, self->common.host_pos.bpm);
+
+  /* append property for current sample */
+  lv2_atom_forge_key (
+    &self->common.forge,
+    self->common.uris.time_frame);
+  lv2_atom_forge_long (
+    &self->common.forge,
+    self->common.host_pos.frame);
+
+  /* append speed */
+  lv2_atom_forge_key (
+    &self->common.forge,
+    self->common.uris.time_speed);
+  lv2_atom_forge_float (
+    &self->common.forge,
+    self->common.host_pos.speed);
+
+  /* append beat unit */
+  lv2_atom_forge_key (
+    &self->common.forge,
+    self->common.uris.time_beatUnit);
+  lv2_atom_forge_int (
+    &self->common.forge,
+    self->common.host_pos.beat_unit);
+
+  /* finish object */
+  lv2_atom_forge_pop (&self->common.forge, &frame);
+}
+
+static void
 send_messages_to_ui (
-  ZLFO * self)
+  ZLFO * self,
+  int    send_position)
 {
   /* set up forge to write directly to notify
    * output port */
   const uint32_t notify_capacity =
     self->notify->atom.size;
   lv2_atom_forge_set_buffer (
-    &self->forge, (uint8_t*) self->notify,
+    &self->common.forge, (uint8_t*) self->notify,
     notify_capacity);
 
   /* start a sequence in the notify output port */
   lv2_atom_forge_sequence_head (
-    &self->forge, &self->notify_frame, 0);
+    &self->common.forge, &self->notify_frame, 0);
 
   /* forge container object of type "ui_state" */
-  lv2_atom_forge_frame_time (&self->forge, 0);
+  lv2_atom_forge_frame_time (&self->common.forge, 0);
   LV2_Atom_Forge_Frame frame;
   lv2_atom_forge_object (
-    &self->forge, &frame, 1,
-    self->uris.ui_state);
+    &self->common.forge, &frame, 0,
+    self->common.uris.ui_state);
 
   /* append property for current sample */
   lv2_atom_forge_key (
-    &self->forge,
-    self->uris.ui_state_current_sample);
+    &self->common.forge,
+    self->common.uris.ui_state_current_sample);
   lv2_atom_forge_long (
-    &self->forge, self->current_sample);
+    &self->common.forge,
+    self->common.current_sample);
 
   /* append property for period size */
   lv2_atom_forge_key (
-    &self->forge,
-    self->uris.ui_state_period_size);
+    &self->common.forge,
+    self->common.uris.ui_state_period_size);
   lv2_atom_forge_long (
-    &self->forge, self->period_size);
+    &self->common.forge, self->common.period_size);
 
   /* append samplerate */
   lv2_atom_forge_key (
-    &self->forge,
-    self->uris.ui_state_samplerate);
+    &self->common.forge,
+    self->common.uris.ui_state_samplerate);
   lv2_atom_forge_double (
-    &self->forge, self->samplerate);
+    &self->common.forge, self->common.samplerate);
+
+  /* append sine multiplier */
+  lv2_atom_forge_key (
+    &self->common.forge,
+    self->common.uris.ui_state_sine_multiplier);
+  lv2_atom_forge_float (
+    &self->common.forge,
+    self->common.sine_multiplier);
+
+  /* append saw multiplier */
+  lv2_atom_forge_key (
+    &self->common.forge,
+    self->common.uris.ui_state_saw_multiplier);
+  lv2_atom_forge_float (
+    &self->common.forge,
+    self->common.saw_multiplier);
 
   /* finish object */
-  lv2_atom_forge_pop (&self->forge, &frame);
+  lv2_atom_forge_pop (&self->common.forge, &frame);
+
+  if (send_position)
+    {
+      send_position_to_ui (self);
+    }
 }
 
 static void
@@ -476,56 +389,6 @@ activate (
   ZLFO * self = (ZLFO*) instance;
 
   recalc_multipliers (self);
-}
-
-static void
-update_position (
-  ZLFO *                  self,
-  const LV2_Atom_Object * obj)
-{
-  ZLfoUris * uris = &self->uris;
-
-  /* Received new transport position/speed */
-  LV2_Atom *beat = NULL,
-           *bpm = NULL,
-           *beat_unit = NULL,
-           *speed = NULL,
-           *frame = NULL;
-  lv2_atom_object_get (
-    obj, uris->time_barBeat, &beat,
-    uris->time_beatUnit, &beat_unit,
-    uris->time_beatsPerMinute, &bpm,
-    uris->time_frame, &frame,
-    uris->time_speed, &speed, NULL);
-  if (bpm && bpm->type == uris->atom_Float)
-    {
-      /* Tempo changed, update BPM */
-      self->bpm = ((LV2_Atom_Float*)bpm)->body;
-     }
-  if (speed && speed->type == uris->atom_Float)
-    {
-      /* Speed changed, e.g. 0 (stop) to 1 (play) */
-      self->speed =
-        ((LV2_Atom_Float *) speed)->body;
-    }
-  if (beat_unit && beat_unit->type == uris->atom_Int)
-    {
-      self->beat_unit =
-        ((LV2_Atom_Int *) beat_unit)->body;
-    }
-  if (frame && frame->type == uris->atom_Long)
-    {
-      self->host_current_sample =
-        ((LV2_Atom_Int *) frame)->body;
-    }
-  if (beat && beat->type == uris->atom_Float)
-    {
-      self->frames_per_beat =
-        60.0f / self->bpm * (float) self->samplerate;
-      const float bar_beats =
-        ((LV2_Atom_Float *) beat)->body;
-      self->beat_offset = fmodf (bar_beats, 1.f);
-    }
 }
 
 static void
@@ -542,27 +405,27 @@ run (
     self->control, ev)
     {
       if (lv2_atom_forge_is_object_type (
-            &self->forge, ev->body.type))
+            &self->common.forge, ev->body.type))
         {
           const LV2_Atom_Object * obj =
             (const LV2_Atom_Object*)&ev->body;
           if (obj->body.otype ==
-                self->uris.time_Position)
+                self->common.uris.time_Position)
             {
-              update_position (self, obj);
+              update_position_from_atom_obj (
+                &self->common.host_pos,
+                &self->common.uris, obj);
               xport_changed = 1;
             }
           else if (obj->body.otype ==
-                     self->uris.ui_on)
+                     self->common.uris.ui_on)
             {
               self->ui_active = 1;
-              fprintf (stderr, "UI IS ACTIVE\n");
             }
           else if (obj->body.otype ==
-                     self->uris.ui_off)
+                     self->common.uris.ui_off)
             {
               self->ui_active = 0;
-              fprintf (stderr, "UI IS OFF\n");
             }
         }
     }
@@ -572,8 +435,7 @@ run (
       self->last_freq, *self->freq);
   int is_freerunning = *self->freerun > 0.0001f;
   int sync_or_freerun_mode_changed =
-    self->was_freerunning &&
-    !is_freerunning;
+    self->was_freerunning && !is_freerunning;
   int sync_rate_changed =
     !(math_floats_equal (
       self->last_sync_rate, *self->sync_rate) &&
@@ -616,13 +478,14 @@ run (
     {
       /* invert horizontally */
       long shifted_current_sample =
-        self->current_sample;
+        self->common.current_sample;
       if (*self->hinvert >= 0.01f)
         {
           shifted_current_sample =
-            self->period_size - self->current_sample;
+            self->common.period_size -
+            self->common.current_sample;
           if (shifted_current_sample ==
-                self->period_size)
+                self->common.period_size)
             shifted_current_sample = 0;
         }
 
@@ -636,12 +499,12 @@ run (
             /* shift ratio */
             (((*self->shift - 0.5f) * 2.f) *
             /* half a period */
-            (self->period_size / 2.f));
+            (self->common.period_size / 2.f));
 
           /* readjust */
           shifted_current_sample =
             shifted_current_sample %
-              self->period_size;
+              self->common.period_size;
         }
       else
         {
@@ -650,15 +513,15 @@ run (
           shifted_current_sample -=
             (long)
             /* shift ratio */
-            ((*self->shift * 2.f) *
+            (((0.5f - *self->shift) * 2.f) *
             /* half a period */
-            (self->period_size / 2.f));
+            (self->common.period_size / 2.f));
 
           /* readjust */
           while (shifted_current_sample < 0)
             {
               shifted_current_sample +=
-                self->period_size;
+                self->common.period_size;
             }
         }
 
@@ -666,13 +529,13 @@ run (
       self->sine_out[i] =
         sinf (
           ((float) shifted_current_sample *
-              self->sine_multiplier));
+              self->common.sine_multiplier));
 
       /* calculate saw */
       self->saw_out[i] =
         fmodf (
           (float) shifted_current_sample *
-            self->saw_up_multiplier, 1.f) * 2.f -
+            self->common.saw_multiplier, 1.f) * 2.f -
         1.f;
       self->saw_out[i] = - self->saw_out[i];
 
@@ -740,14 +603,15 @@ run (
 #undef ADJUST_RANGE
 
       if (is_freerunning ||
-          (!is_freerunning && self->speed >
+          (!is_freerunning &&
+           self->common.host_pos.speed >
              0.00001f))
         {
-          self->current_sample++;
+          self->common.current_sample++;
         }
-      if (self->current_sample ==
-            self->period_size)
-        self->current_sample = 0;
+      if (self->common.current_sample ==
+            self->common.period_size)
+        self->common.current_sample = 0;
     }
 #if 0
   fprintf (
@@ -764,7 +628,7 @@ run (
 
   if (self->ui_active)
     {
-      send_messages_to_ui (self);
+      send_messages_to_ui (self, xport_changed);
     }
 }
 

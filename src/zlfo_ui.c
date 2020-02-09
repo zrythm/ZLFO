@@ -41,6 +41,7 @@
 #include <stdlib.h>
 
 #include "zlfo_common.h"
+#include "zlfo_math.h"
 #include "zlfo_ui_theme.h"
 
 #include <cairo.h>
@@ -142,18 +143,14 @@ typedef enum DrawDataType
   DATA_TYPE_LBL,
 } DrawDataType;
 
-/**
- * Wave mode for editing.
- */
-typedef enum WaveMode
+typedef enum VisibleWaves
 {
-  WAVE_SINE,
-  WAVE_SAW,
-  WAVE_TRIANGLE,
-  WAVE_SQUARE,
-  WAVE_RND,
-  WAVE_CUSTOM,
-} WaveMode;
+  WAVE_SINE = 1 << 1,
+  WAVE_SAW = 1 << 2,
+  WAVE_TRIANGLE = 1 << 3,
+  WAVE_SQUARE = 1 << 4,
+  WAVE_RND = 1 << 5,
+} VisibleWaves;
 
 typedef struct ZLfoUi
 {
@@ -175,26 +172,14 @@ typedef struct ZLfoUi
   float            nodes[16][3];
   int              num_nodes;
 
-  /** Non-port values */
-  long             current_sample;
-  long             period_size;
-  double           samplerate;
-  WaveMode         wave_mode;
+  /* Non-port values */
+
+  ZLfoCommon       common;
+
+  VisibleWaves     visible_waves;
 
   LV2UI_Write_Function write;
   LV2UI_Controller controller;
-
-  /** Map feature. */
-  LV2_URID_Map *   map;
-
-  /** Atom forge. */
-  LV2_Atom_Forge   forge;
-
-  /** Log feature. */
-  LV2_Log_Log *    log;
-
-  /** URIs. */
-  ZLfoUris         uris;
 
   /**
    * This is the window passed in the features from
@@ -373,56 +358,22 @@ on_btn_clicked (
     case DATA_TYPE_BTN_LEFT:
       switch (data->val)
         {
-        case LEFT_BTN_SINE:
-          if (self->wave_mode == WAVE_SINE)
-            {
-              self->wave_mode = WAVE_CUSTOM;
-            }
-          else
-            {
-              self->wave_mode = WAVE_SINE;
-            }
-          break;
-        case LEFT_BTN_SAW:
-          if (self->wave_mode == WAVE_SAW)
-            {
-              self->wave_mode = WAVE_CUSTOM;
-            }
-          else
-            {
-              self->wave_mode = WAVE_SAW;
-            }
-          break;
-        case LEFT_BTN_TRIANGLE:
-          if (self->wave_mode == WAVE_TRIANGLE)
-            {
-              self->wave_mode = WAVE_CUSTOM;
-            }
-          else
-            {
-              self->wave_mode = WAVE_TRIANGLE;
-            }
-          break;
-        case LEFT_BTN_RND:
-          if (self->wave_mode == WAVE_RND)
-            {
-              self->wave_mode = WAVE_CUSTOM;
-            }
-          else
-            {
-              self->wave_mode = WAVE_RND;
-            }
-          break;
-        case LEFT_BTN_SQUARE:
-          if (self->wave_mode == WAVE_SQUARE)
-            {
-              self->wave_mode = WAVE_CUSTOM;
-            }
-          else
-            {
-              self->wave_mode = WAVE_SQUARE;
-            }
-          break;
+#define HANDLE_BTN(caps) \
+  case LEFT_BTN_##caps: \
+    if (self->visible_waves & WAVE_##caps) \
+      { \
+        self->visible_waves &= (unsigned int) ~WAVE_##caps; \
+      } \
+    else \
+      { \
+        self->visible_waves |= WAVE_##caps; \
+      } \
+    break
+          HANDLE_BTN(SINE);
+          HANDLE_BTN(SAW);
+          HANDLE_BTN(TRIANGLE);
+          HANDLE_BTN(SQUARE);
+          HANDLE_BTN(RND);
         default:
           break;
         }
@@ -548,19 +499,19 @@ get_button_active (
       switch (data->val)
         {
         case LEFT_BTN_SINE:
-          return self->wave_mode == WAVE_SINE;
+          return self->visible_waves & WAVE_SINE;
           break;
         case LEFT_BTN_TRIANGLE:
-          return self->wave_mode == WAVE_TRIANGLE;
+          return self->visible_waves & WAVE_TRIANGLE;
           break;
         case LEFT_BTN_SAW:
-          return self->wave_mode == WAVE_SAW;
+          return self->visible_waves & WAVE_SAW;
           break;
         case LEFT_BTN_SQUARE:
-          return self->wave_mode == WAVE_SQUARE;
+          return self->visible_waves & WAVE_SQUARE;
           break;
         case LEFT_BTN_RND:
-          return self->wave_mode == WAVE_RND;
+          return self->visible_waves & WAVE_RND;
           break;
         default:
           break;
@@ -1115,8 +1066,8 @@ mid_region_bg_draw_cb (
   /* draw current position */
   double total_space = GRID_WIDTH;
   double current_offset =
-    (double) self->current_sample /
-    (double) self->period_size;
+    (double) self->common.current_sample /
+    (double) self->common.period_size;
 #if 0
   ztk_message (
     "current_sample %ld, period size %ld",
@@ -1135,29 +1086,158 @@ mid_region_bg_draw_cb (
   cairo_stroke (cr);
 /*#endif*/
 
-  if (self->wave_mode == WAVE_CUSTOM)
-    {
-      /* draw node curves */
-      zlfo_ui_theme_set_cr_color (cr, line);
-      cairo_set_line_width (cr, 6);
-      for (int i = 0; i < self->num_nodes - 1; i++)
-        {
-          ZtkWidget * nodew = self->node_widgets[i];
-          ZtkWidget * next_nodew =
-            self->node_widgets[i + 1];
+  float sync_rate_float =
+    sync_rate_to_float (
+      self->sync_rate,
+      self->sync_rate_type);
 
+  /**
+   * Effective frequency.
+   *
+   * This is either the free-running frequency,
+   * or the frequency corresponding to the current
+   * sync rate.
+   */
+  float effective_freq =
+    get_effective_freq (
+      self->freerun, self->freq,
+      &self->common.host_pos, sync_rate_float);
+
+  recalc_vars (
+    self->freerun,
+    &self->common.sine_multiplier,
+    &self->common.saw_multiplier,
+    &self->common.period_size,
+    &self->common.current_sample,
+    &self->common.host_pos, effective_freq,
+    sync_rate_float,
+    (float) self->common.samplerate);
+
+  /* draw other visible waves in the back */
+  double max_range =
+    MAX (self->range_max, self->range_min);
+  double min_range =
+    MIN (self->range_max, self->range_min);
+  double range = max_range - min_range;
+
+  cairo_set_source_rgba (
+    cr, zlfo_ui_theme.line.red,
+    zlfo_ui_theme.line.green,
+    zlfo_ui_theme.line.blue, 0.3);
+  cairo_set_line_width (cr, 3);
+  if (self->visible_waves & WAVE_SINE)
+    {
+
+      for (int i = 0; i < GRID_WIDTH; i++)
+        {
+          /* from 0 to GRID_WIDTH */
+          double xval = (double) i;
+
+          /* invert horizontally */
+          if (self->hinvert)
+            {
+              xval = (double) (GRID_WIDTH - i);
+            }
+
+          /* shift */
+          if (self->shift >= 0.5f)
+            {
+              xval +=
+                /* shift ratio */
+                (((double) self->shift - 0.50) *
+                   2.0) *
+                 /* half the period */
+                (GRID_WIDTH / 2.0);
+
+              /* adjust */
+              while (xval >= GRID_WIDTH)
+                {
+                  xval -= GRID_WIDTH;
+                }
+            }
+          else
+            {
+              xval -=
+                /* shift ratio */
+                ((0.50 - (double) self->shift) *
+                   2.0) *
+                /* half a period */
+                (GRID_WIDTH / 2.0);
+
+              /* adjust */
+              while (xval < 0.0)
+                {
+                  xval += GRID_WIDTH;
+                }
+            }
+
+          double samples =
+            (xval / GRID_WIDTH) *
+            (double) self->common.period_size;
+
+          /* calculate sine */
+          double sine =
+            sin (
+              (samples *
+                (double)
+                self->common.sine_multiplier));
+
+          /* invert vertically */
+          if (self->vinvert)
+            {
+              sine = - sine;
+            }
+
+          /* adjust range */
+          sine =
+            min_range +
+          ((sine + 1.0) / 2.0) * range;
+
+          double draw_sine =
+            ((sine + 1.0) * GRID_HEIGHT) / 2.0;
+
+          /* invert because higher Y means lower
+           * in cairo */
+          draw_sine = GRID_HEIGHT - draw_sine;
+
+          /* draw line */
           cairo_move_to (
             cr,
-            nodew->rect.x + nodew->rect.width / 2,
-            nodew->rect.y + nodew->rect.height / 2);
+            widget->rect.x + GRID_HPADDING + i,
+            widget->rect.y + GRID_YSTART_OFFSET +
+              draw_sine);
           cairo_line_to (
             cr,
-            next_nodew->rect.x +
-              next_nodew->rect.width / 2,
-            next_nodew->rect.y +
-              next_nodew->rect.height / 2);
+            widget->rect.x + GRID_HPADDING + i + 1,
+            widget->rect.y + GRID_YSTART_OFFSET +
+              draw_sine + 1);
           cairo_stroke (cr);
         }
+    }
+  if (self->visible_waves & WAVE_SAW)
+    {
+    }
+
+  /* draw node curves */
+  zlfo_ui_theme_set_cr_color (cr, line);
+  cairo_set_line_width (cr, 6);
+  for (int i = 0; i < self->num_nodes - 1; i++)
+    {
+      ZtkWidget * nodew = self->node_widgets[i];
+      ZtkWidget * next_nodew =
+        self->node_widgets[i + 1];
+
+      cairo_move_to (
+        cr,
+        nodew->rect.x + nodew->rect.width / 2,
+        nodew->rect.y + nodew->rect.height / 2);
+      cairo_line_to (
+        cr,
+        next_nodew->rect.x +
+          next_nodew->rect.width / 2,
+        next_nodew->rect.y +
+          next_nodew->rect.height / 2);
+      cairo_stroke (cr);
     }
 }
 
@@ -1260,8 +1340,7 @@ node_update_cb (
   ZLfoUi * self = data->zlfo_ui;
 
   /* set visibility */
-  if (data->idx < self->num_nodes &&
-      self->wave_mode == WAVE_CUSTOM)
+  if (data->idx < self->num_nodes)
     {
       ztk_widget_set_visible (w, 1);
     }
@@ -1918,7 +1997,7 @@ instantiate (
   self->dragging_node = -1;
 
   /* FIXME save this in state */
-  self->wave_mode = WAVE_SINE;
+  self->visible_waves = 0;
 
 #ifndef RELEASE
   ztk_log_set_level (ZTK_LOG_LEVEL_DEBUG);
@@ -1940,30 +2019,30 @@ instantiate (
         }
       else if (HAVE_FEATURE (LV2_URID__map))
         {
-          self->map =
+          self->common.map =
             (LV2_URID_Map *) features[i]->data;
         }
       else if (HAVE_FEATURE (LV2_LOG__log))
         {
-          self->log =
+          self->common.log =
             (LV2_Log_Log *) features[i]->data;
         }
     }
 
 #undef HAVE_FEATURE
 
-  if (!self->map)
+  if (!self->common.map)
     {
       log_error (
-        self->log, &self->uris,
+        self->common.log, &self->common.uris,
         "Missing feature urid:map");
     }
 
   /* map uris */
-  map_uris (self->map, &self->uris);
+  map_uris (self->common.map, &self->common.uris);
 
   lv2_atom_forge_init (
-    &self->forge, self->map);
+    &self->common.forge, self->common.map);
 
   /* create UI and set the native window to the
    * widget */
@@ -1975,19 +2054,20 @@ instantiate (
   /* let the plugin know that the UI is active */
   uint8_t obj_buf[64];
   lv2_atom_forge_set_buffer (
-    &self->forge, obj_buf, 64);
+    &self->common.forge, obj_buf, 64);
   LV2_Atom_Forge_Frame frame;
-  lv2_atom_forge_frame_time (&self->forge, 0);
+  lv2_atom_forge_frame_time (
+    &self->common.forge, 0);
   LV2_Atom* msg =
     (LV2_Atom *)
     lv2_atom_forge_object (
-      &self->forge, &frame, 1,
-      self->uris.ui_on);
-  lv2_atom_forge_pop (&self->forge, &frame);
+      &self->common.forge, &frame, 1,
+      self->common.uris.ui_on);
+  lv2_atom_forge_pop (&self->common.forge, &frame);
   self->write (
     self->controller, 0,
     lv2_atom_total_size (msg),
-    self->uris.atom_eventTransfer, msg);
+    self->common.uris.atom_eventTransfer, msg);
 
   return self;
 }
@@ -2000,19 +2080,20 @@ cleanup (LV2UI_Handle handle)
   /* let the plugin know that the UI is off */
   uint8_t obj_buf[64];
   lv2_atom_forge_set_buffer (
-    &self->forge, obj_buf, 64);
+    &self->common.forge, obj_buf, 64);
   LV2_Atom_Forge_Frame frame;
-  lv2_atom_forge_frame_time (&self->forge, 0);
+  lv2_atom_forge_frame_time (
+    &self->common.forge, 0);
   LV2_Atom* msg =
     (LV2_Atom *)
     lv2_atom_forge_object (
-      &self->forge, &frame, 1,
-      self->uris.ui_off);
-  lv2_atom_forge_pop (&self->forge, &frame);
+      &self->common.forge, &frame, 1,
+      self->common.uris.ui_off);
+  lv2_atom_forge_pop (&self->common.forge, &frame);
   self->write (
     self->controller, 0,
     lv2_atom_total_size (msg),
-    self->uris.atom_eventTransfer, msg);
+    self->common.uris.atom_eventTransfer, msg);
 
   ztk_app_free (self->app);
 
@@ -2116,57 +2197,90 @@ port_event (
         }
       puglPostRedisplay (self->app->view);
     }
-  else if (format == self->uris.atom_eventTransfer)
+  else if (format ==
+             self->common.uris.atom_eventTransfer)
     {
       const LV2_Atom* atom =
         (const LV2_Atom*) buffer;
       if (lv2_atom_forge_is_object_type (
-            &self->forge, atom->type))
+            &self->common.forge, atom->type))
         {
           const LV2_Atom_Object* obj =
             (const LV2_Atom_Object*) atom;
           if (obj->body.otype ==
-                self->uris.ui_state)
+                self->common.uris.ui_state)
             {
-              const LV2_Atom* current_sample = NULL;
-              const LV2_Atom* samplerate = NULL;
-              const LV2_Atom* period_size = NULL;
+              const LV2_Atom
+                * current_sample = NULL,
+                * samplerate = NULL,
+                * period_size = NULL,
+                * sine_multiplier = NULL,
+                * saw_multiplier = NULL;
               lv2_atom_object_get (
                 obj,
-                self->uris.ui_state_current_sample,
+                self->common.uris.
+                  ui_state_current_sample,
                 &current_sample,
-                self->uris.ui_state_period_size,
+                self->common.uris.
+                  ui_state_period_size,
                 &period_size,
-                self->uris.ui_state_samplerate,
+                self->common.uris.
+                  ui_state_samplerate,
                 &samplerate,
+                self->common.uris.
+                  ui_state_sine_multiplier,
+                &sine_multiplier,
+                self->common.uris.
+                  ui_state_saw_multiplier,
+                &saw_multiplier,
                 NULL);
               if (current_sample &&
                   current_sample->type ==
-                    self->uris.atom_Long &&
+                    self->common.uris.atom_Long &&
                   samplerate &&
                   samplerate->type ==
-                    self->uris.atom_Double &&
+                    self->common.uris.atom_Double &&
                   period_size &&
                   period_size->type ==
-                    self->uris.atom_Long)
+                    self->common.uris.atom_Long &&
+                  sine_multiplier &&
+                  sine_multiplier->type ==
+                    self->common.uris.atom_Float &&
+                  saw_multiplier &&
+                  saw_multiplier->type ==
+                    self->common.uris.atom_Float)
                 {
-                  self->current_sample =
+                  self->common.current_sample =
                     ((LV2_Atom_Long*)
                      current_sample)->body;
-                  self->samplerate =
+                  self->common.samplerate =
                     ((LV2_Atom_Double*)
                      samplerate)->body;
-                  self->period_size =
+                  self->common.period_size =
                     ((LV2_Atom_Long*)
                      period_size)->body;
+                  self->common.sine_multiplier =
+                    ((LV2_Atom_Float*)
+                     sine_multiplier)->body;
+                  self->common.saw_multiplier =
+                    ((LV2_Atom_Float*)
+                     saw_multiplier)->body;
                 }
               else
                 {
                   ztk_warning (
-                    "%s",
-                    "failed to get current sample");
+                    "failed to read UI state "
+                    "atom");
                 }
             }
+          if (obj->body.otype ==
+                self->common.uris.time_Position)
+            {
+              update_position_from_atom_obj (
+                &self->common.host_pos,
+                &self->common.uris, obj);
+            }
+
 /*#if 0*/
           PuglRect rect;
           rect.x = self->mid_region->rect.x;
