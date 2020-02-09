@@ -1267,18 +1267,11 @@ draw_graph_steps (
     MIN (self->range_max, self->range_min);
   double range = max_range - min_range;
 
-  int grid_step_divisor =
+  double grid_step_divisor =
+    (double)
     grid_step_to_divisor (
       (GridStep) self->grid_step);
-  int step_px = GRID_WIDTH / grid_step_divisor;
-  if (GRID_WIDTH % grid_step_divisor != 0)
-    {
-      ztk_warning (
-        "Grid width (%d) is not fully divisible "
-        "by the grid step (%d)",
-        GRID_WIDTH, grid_step_divisor);
-      return;
-    }
+  double step_px = GRID_WIDTH / grid_step_divisor;
 
   cairo_set_source_rgba (
     cr, zlfo_ui_theme.left_button_click.red,
@@ -1287,11 +1280,15 @@ draw_graph_steps (
     GRAPH_OVERLAY_ALPHA);
   cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
   cairo_set_line_width (cr, step_px);
-  for (int i = step_px / 2; i < GRID_WIDTH;
+  for (double i = step_px / 2.0;
+       /* we are approximating so be sure it
+        * doesn't go beyond the width by small
+        * decimals */
+       i < (GRID_WIDTH - 0.1);
        i += step_px)
     {
       /* from 0 to GRID_WIDTH */
-      double xval = (double) i;
+      double xval = i;
 
       /* invert horizontally */
       if (self->hinvert)
@@ -1354,19 +1351,16 @@ draw_graph_steps (
    * in cairo */ \
   draw_val = GRID_HEIGHT - draw_val; \
  \
-  if (i != 0) \
-    { \
-      /* draw line */ \
-      cairo_move_to ( \
-        cr, \
-        GRID_XSTART_GLOBAL + i, \
-        GRID_YSTART_GLOBAL + GRID_HEIGHT); \
-      cairo_line_to ( \
-        cr, \
-        GRID_XSTART_GLOBAL + i, \
-        GRID_YSTART_GLOBAL + draw_val); \
-      cairo_stroke (cr); \
-    }
+  /* draw line */ \
+  cairo_move_to ( \
+    cr, \
+    GRID_XSTART_GLOBAL + i, \
+    GRID_YSTART_GLOBAL + GRID_HEIGHT); \
+  cairo_line_to ( \
+    cr, \
+    GRID_XSTART_GLOBAL + i, \
+    GRID_YSTART_GLOBAL + draw_val); \
+  cairo_stroke (cr); \
 
       /* calculate sine */
       double sine =

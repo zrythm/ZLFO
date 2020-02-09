@@ -33,6 +33,7 @@
    (b - a) < 0.0001f)
 
 #define IS_FREERUN(x) (*x->freerun > 0.001f)
+#define IS_STEP_MODE(x) (*x->step_mode > 0.001f)
 
 typedef struct ZLFO
 {
@@ -474,9 +475,19 @@ run (
       1.f;
   float prev_rnd_point = 0.f;
   float m = 0.f;
-  uint32_t rnd_step = n_samples < 16 ? 1 : n_samples / 16;
+  uint32_t rnd_step =
+    n_samples < 16 ? 1 : n_samples / 16;
   /*uint32_t prev_rnd_x = 0;*/
   uint32_t rnd_x = 0;
+
+  float grid_step_divisor =
+    (float)
+    grid_step_to_divisor (
+      (GridStep) *self->grid_step);
+  long step_frames =
+    (long)
+    ((float) self->common.period_size /
+     grid_step_divisor);
 
   for (uint32_t i = 0; i < n_samples; i++)
     {
@@ -529,6 +540,16 @@ run (
             }
         }
 
+      if (IS_STEP_MODE (self))
+        {
+          /* find closest step and set the current
+           * sample to the middle of it */
+          shifted_current_sample =
+            (shifted_current_sample / step_frames) *
+              step_frames +
+            step_frames / 2;
+        }
+
       /* calculate sine */
       self->sine_out[i] =
         sinf (
@@ -574,6 +595,7 @@ run (
             (rnd_point - prev_rnd_point) / (rnd_step);
         }
       self->rnd_out[i] = m * (i - rnd_x) + rnd_point;
+
 
       /* invert vertically */
       if (*self->vinvert >= 0.01f)
