@@ -254,23 +254,38 @@ get_current_sample (
   HostPosition * host_pos,
   uint32_t       period_size)
 {
-  /* if beat_unit is 0 that means we don't know the
-   * time info yet */
-  if (freerunning || host_pos->beat_unit == 0)
+  if (freerunning)
     {
-      if (!freerunning && host_pos->beat_unit == 0)
-        {
-          fprintf (
-            stderr,
-            "Host did not send time info. Beat "
-            "unit is unknown.\n");
-        }
+      return 0;
+    }
+  else if (host_pos->beat_unit == 0)
+    {
+      /* if beat_unit is 0 that means we don't
+       * know the time info yet */
+      fprintf (
+        stderr,
+        "Host did not send time info. Beat "
+        "unit is unknown.\n");
       return 0;
     }
   else /* synced */
     {
       return host_pos->frame % period_size;
     }
+}
+
+static inline int
+float_array_contains_nonzero (
+  const float * arr,
+  size_t        size)
+{
+  for (size_t i = 0; i < size; i++)
+    {
+      if (arr[i] > 0.0001f ||
+          arr[i] < - 0.0001f)
+        return 1;
+    }
+  return 0;
 }
 
 /**

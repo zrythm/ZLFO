@@ -122,7 +122,7 @@ int main (
     lv2:default %f ;\n\
     lv2:minimum %f ;\n\
     lv2:maximum %f ;\n\
-  ] , [\n", 0.0, -1.0, 1.0, 0.0, -1.0, 1.0);
+  ] , [\n", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0);
 
   /* write input controls */
   int index = ZLFO_GATE;

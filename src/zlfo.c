@@ -34,6 +34,7 @@
 
 #define IS_FREERUN(x) (*x->freerun > 0.001f)
 #define IS_STEP_MODE(x) (*x->step_mode > 0.001f)
+#define IS_TRIGGERED(x) (*x->trigger > 0.001f)
 
 typedef struct ZLFO
 {
@@ -488,6 +489,17 @@ run (
     (long)
     ((float) self->common.period_size /
      grid_step_divisor);
+
+  /* handle triggers
+   *
+   * FIXME CV trigger requires splitting the cycle,
+   * but for now it applies to the whole cycle */
+  if (IS_TRIGGERED (self) ||
+      float_array_contains_nonzero (
+        self->cv_trigger, n_samples))
+    {
+      self->common.current_sample = 0;
+    }
 
   for (uint32_t i = 0; i < n_samples; i++)
     {
