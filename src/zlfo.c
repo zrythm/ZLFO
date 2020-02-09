@@ -35,6 +35,8 @@
 #define IS_FREERUN(x) (*x->freerun > 0.001f)
 #define IS_STEP_MODE(x) (*x->step_mode > 0.001f)
 #define IS_TRIGGERED(x) (*x->trigger > 0.001f)
+#define IS_GATED_MODE(x) (*x->gated_mode > 0.001f)
+#define IS_GATED(x) (*x->gate > 0.001f)
 
 typedef struct ZLFO
 {
@@ -45,6 +47,7 @@ typedef struct ZLFO
   const float * trigger;
   const float * cv_gate;
   const float * cv_trigger;
+  const float * gated_mode;
   const float * freq;
   const float * shift;
   const float * range_min;
@@ -203,6 +206,9 @@ connect_port (
       break;
     case ZLFO_TRIGGER:
       self->trigger = (const float *) data;
+      break;
+    case ZLFO_GATED_MODE:
+      self->gated_mode = (const float *) data;
       break;
     case ZLFO_FREQ:
       self->freq = (const float *) data;
@@ -623,6 +629,18 @@ run (
           INVERT (custom);
 
 #undef INVERT
+        }
+
+      /* if in gating mode and gate is not active,
+       * set all output to zero */
+      if (IS_GATED_MODE (self) &&
+          !(IS_GATED (self) || self->cv_gate[i] > 0.001f))
+        {
+          self->sine_out[i] = 0.f;
+          self->saw_out[i] = 0.f;
+          self->triangle_out[i] = 0.f;
+          self->square_out[i] = 0.f;
+          self->rnd_out[i] = 0.f;
         }
 
       /* adjust range */

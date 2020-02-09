@@ -141,6 +141,16 @@ int main (
       char comment[800] = "\0";
       switch (i)
         {
+        case ZLFO_GATED_MODE:
+          strcpy (symbol, "gated_mode");
+          strcpy (name, "Gated mode");
+          strcpy (
+            comment,
+            "If this is on, output will only be "
+            "produced if gate or CV gate have a "
+            "non-zero signal");
+          type = PORT_TYPE_TOGGLE;
+          break;
         case ZLFO_GATE:
           strcpy (symbol, "gate");
           strcpy (name, "Gate");
