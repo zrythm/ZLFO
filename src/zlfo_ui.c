@@ -1012,6 +1012,182 @@ add_bot_buttons (
     self->app, (ZtkWidget *) control, 2);
 }
 
+/**
+ * Draws the graphs in curve mode.
+ */
+static void
+draw_graph_curves (
+  ZLfoUi *  self,
+  cairo_t * cr)
+{
+  double max_range =
+    MAX (self->range_max, self->range_min);
+  double min_range =
+    MIN (self->range_max, self->range_min);
+  double range = max_range - min_range;
+
+  cairo_set_source_rgba (
+    cr, zlfo_ui_theme.line.red,
+    zlfo_ui_theme.line.green,
+    zlfo_ui_theme.line.blue, 1);
+  cairo_set_line_cap (cr, CAIRO_LINE_CAP_ROUND);
+  cairo_set_line_width (cr, 6);
+  double prev_draw_sine,
+         prev_draw_triangle,
+         prev_draw_saw, prev_draw_square;
+  for (int i = 0; i < GRID_WIDTH; i++)
+    {
+      /* from 0 to GRID_WIDTH */
+      double xval = (double) i;
+
+      /* invert horizontally */
+      if (self->hinvert)
+        {
+          xval = (double) (GRID_WIDTH - i);
+        }
+
+      /* shift */
+      if (self->shift >= 0.5f)
+        {
+          xval +=
+            /* shift ratio */
+            (((double) self->shift - 0.50) *
+               2.0) *
+             /* half the period */
+            (GRID_WIDTH / 2.0);
+
+          /* adjust */
+          while (xval >= GRID_WIDTH)
+            {
+              xval -= GRID_WIDTH;
+            }
+        }
+      else
+        {
+          xval -=
+            /* shift ratio */
+            ((0.50 - (double) self->shift) *
+               2.0) *
+            /* half a period */
+            (GRID_WIDTH / 2.0);
+
+          /* adjust */
+          while (xval < 0.0)
+            {
+              xval += GRID_WIDTH;
+            }
+        }
+
+      double samples =
+        (xval / GRID_WIDTH) *
+        (double) self->common.period_size;
+
+#define DRAW_VAL(val) \
+  /* invert vertically */ \
+  if (self->vinvert) \
+    { \
+      val = - val; \
+    } \
+ \
+  /* adjust range */ \
+  val = \
+    min_range + \
+  ((val + 1.0) / 2.0) * range; \
+ \
+  double draw_val = \
+    ((val + 1.0) * GRID_HEIGHT) / 2.0; \
+ \
+  /* invert because higher Y means lower \
+   * in cairo */ \
+  draw_val = GRID_HEIGHT - draw_val; \
+ \
+  if (i != 0) \
+    { \
+      /* draw line */ \
+      cairo_move_to ( \
+        cr, \
+        GRID_XSTART_GLOBAL + i - 1, \
+        GRID_YSTART_GLOBAL + \
+          prev_draw_##val); \
+      cairo_line_to ( \
+        cr, \
+        GRID_XSTART_GLOBAL + i, \
+        GRID_YSTART_GLOBAL + \
+          draw_val); \
+      cairo_stroke (cr); \
+    } \
+  prev_draw_##val = draw_val
+
+      /* calculate sine */
+      double sine =
+        sin (
+          (samples *
+            (double)
+            self->common.sine_multiplier));
+
+      /* calculate saw */
+      double saw =
+        fmod (
+          samples *
+            (double)
+            self->common.saw_multiplier,
+          1.0) * 2.0 - 1.0;
+      saw = - saw;
+
+      /* triangle can be calculated based on the
+       * saw */
+      double triangle;
+      if (saw > 0.0)
+        triangle =
+          ((- saw) + 1.0) * 2.0 - 1.0;
+      else
+        triangle =
+          (saw + 1.0) * 2.0 - 1.0;
+
+      /* square too */
+      double square = saw < 0.0 ? -1.0 : 1.0;
+
+      if (self->visible_waves & WAVE_SINE)
+        {
+          DRAW_VAL (sine);
+        }
+      if (self->visible_waves & WAVE_SAW)
+        {
+          DRAW_VAL (saw);
+        }
+      if (self->visible_waves & WAVE_TRIANGLE)
+        {
+          DRAW_VAL (triangle);
+        }
+      if (self->visible_waves & WAVE_SQUARE)
+        {
+          DRAW_VAL (square);
+        }
+    }
+
+  /* draw node curves */
+  zlfo_ui_theme_set_cr_color (cr, line);
+  cairo_set_line_width (cr, 6);
+  for (int i = 0; i < self->num_nodes - 1; i++)
+    {
+      ZtkWidget * nodew = self->node_widgets[i];
+      ZtkWidget * next_nodew =
+        self->node_widgets[i + 1];
+
+      cairo_move_to (
+        cr,
+        nodew->rect.x + nodew->rect.width / 2,
+        nodew->rect.y + nodew->rect.height / 2);
+      cairo_line_to (
+        cr,
+        next_nodew->rect.x +
+          next_nodew->rect.width / 2,
+        next_nodew->rect.y +
+          next_nodew->rect.height / 2);
+      cairo_stroke (cr);
+    }
+}
+
 static void
 mid_region_bg_draw_cb (
   ZtkWidget * widget,
@@ -1114,163 +1290,12 @@ mid_region_bg_draw_cb (
     (float) self->common.samplerate);
 
   /* draw other visible waves in the back */
-  double max_range =
-    MAX (self->range_max, self->range_min);
-  double min_range =
-    MIN (self->range_max, self->range_min);
-  double range = max_range - min_range;
-
-  cairo_set_source_rgba (
-    cr, zlfo_ui_theme.line.red,
-    zlfo_ui_theme.line.green,
-    zlfo_ui_theme.line.blue, 0.3);
-  cairo_set_line_width (cr, 3);
-  for (int i = 0; i < GRID_WIDTH; i++)
+  if (self->step_mode)
     {
-      /* from 0 to GRID_WIDTH */
-      double xval = (double) i;
-
-      /* invert horizontally */
-      if (self->hinvert)
-        {
-          xval = (double) (GRID_WIDTH - i);
-        }
-
-      /* shift */
-      if (self->shift >= 0.5f)
-        {
-          xval +=
-            /* shift ratio */
-            (((double) self->shift - 0.50) *
-               2.0) *
-             /* half the period */
-            (GRID_WIDTH / 2.0);
-
-          /* adjust */
-          while (xval >= GRID_WIDTH)
-            {
-              xval -= GRID_WIDTH;
-            }
-        }
-      else
-        {
-          xval -=
-            /* shift ratio */
-            ((0.50 - (double) self->shift) *
-               2.0) *
-            /* half a period */
-            (GRID_WIDTH / 2.0);
-
-          /* adjust */
-          while (xval < 0.0)
-            {
-              xval += GRID_WIDTH;
-            }
-        }
-
-      double samples =
-        (xval / GRID_WIDTH) *
-        (double) self->common.period_size;
-
-#define DRAW_VAL(val) \
-  /* invert vertically */ \
-  if (self->vinvert) \
-    { \
-      val = - val; \
-    } \
- \
-  /* adjust range */ \
-  val = \
-    min_range + \
-  ((val + 1.0) / 2.0) * range; \
- \
-  double draw_val = \
-    ((val + 1.0) * GRID_HEIGHT) / 2.0; \
- \
-  /* invert because higher Y means lower \
-   * in cairo */ \
-  draw_val = GRID_HEIGHT - draw_val; \
- \
-  /* draw line */ \
-  cairo_move_to ( \
-    cr, \
-    widget->rect.x + GRID_HPADDING + i, \
-    widget->rect.y + GRID_YSTART_OFFSET + \
-      draw_val); \
-  cairo_line_to ( \
-    cr, \
-    widget->rect.x + GRID_HPADDING + i + 1, \
-    widget->rect.y + GRID_YSTART_OFFSET + \
-      draw_val + 1); \
-  cairo_stroke (cr)
-
-      /* calculate sine */
-      double sine =
-        sin (
-          (samples *
-            (double)
-            self->common.sine_multiplier));
-
-      /* calculate saw */
-      double saw =
-        fmod (
-          samples *
-            (double)
-            self->common.saw_multiplier,
-          1.0) * 2.0 - 1.0;
-      saw = - saw;
-
-      /* triangle can be calculated based on the
-       * saw */
-      double triangle;
-      if (saw > 0.0)
-        triangle =
-          ((- saw) + 1.0) * 2.0 - 1.0;
-      else
-        triangle =
-          (saw + 1.0) * 2.0 - 1.0;
-
-      /* square too */
-      double square = saw < 0.0 ? -1.0 : 1.0;
-
-      if (self->visible_waves & WAVE_SINE)
-        {
-          DRAW_VAL (sine);
-        }
-      if (self->visible_waves & WAVE_SAW)
-        {
-          DRAW_VAL (saw);
-        }
-      if (self->visible_waves & WAVE_TRIANGLE)
-        {
-          DRAW_VAL (triangle);
-        }
-      if (self->visible_waves & WAVE_SQUARE)
-        {
-          DRAW_VAL (square);
-        }
     }
-
-  /* draw node curves */
-  zlfo_ui_theme_set_cr_color (cr, line);
-  cairo_set_line_width (cr, 6);
-  for (int i = 0; i < self->num_nodes - 1; i++)
+  else
     {
-      ZtkWidget * nodew = self->node_widgets[i];
-      ZtkWidget * next_nodew =
-        self->node_widgets[i + 1];
-
-      cairo_move_to (
-        cr,
-        nodew->rect.x + nodew->rect.width / 2,
-        nodew->rect.y + nodew->rect.height / 2);
-      cairo_line_to (
-        cr,
-        next_nodew->rect.x +
-          next_nodew->rect.width / 2,
-        next_nodew->rect.y +
-          next_nodew->rect.height / 2);
-      cairo_stroke (cr);
+      draw_graph_curves (self, cr);
     }
 }
 
@@ -1875,13 +1900,13 @@ add_grid_controls (
         case GRID_BTN_HMIRROR:
           rect.x =
             start + padding + width + padding +
-            68;
+            69;
           rect.width = 40;
           break;
         case GRID_BTN_VMIRROR:
           rect.x =
             start + padding + width + padding +
-            110;
+            111;
           rect.width = 40;
           break;
         default:
