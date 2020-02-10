@@ -93,6 +93,9 @@
 
 #define GRAPH_OVERLAY_ALPHA 0.6
 
+/** Double click interval, in seconds. */
+#define DOUBLE_CLICK_INTERVAL 0.24
+
 #define GET_HANDLE \
   ZLfoUi * self = (ZLfoUi *) puglGetHandle (view);
 
@@ -204,6 +207,10 @@ typedef struct ZLfoUi
 
   /** Widgets for the current nodes. */
   ZtkWidget *      node_widgets[16];
+
+  /** Cache to remember when last double click
+   * occured, so that it can be ignored. */
+  double           last_double_click;
 
   /** Index of the current node being dragged,
    * or -1. */
@@ -1601,40 +1608,39 @@ mid_region_bg_update_cb (
   ZtkWidget * w,
   ZLfoUi *    self)
 {
-  double diff_sec =
-    w->last_btn_press - w->last_btn_release;
-  if (diff_sec < 0)
-    diff_sec =
-      w->last_btn_release - w->last_btn_press;
-  int double_click =
-    diff_sec < 0.18 && diff_sec > 0.001;
+  int double_click = 0;
+  if (w->last_btn_press >
+        w->before_last_btn_press &&
+      !(math_doubles_equal (
+          w->last_btn_press,
+          self->last_double_click)))
+    {
+      double diff_sec =
+        w->last_btn_press -
+        w->before_last_btn_press;
+#if 0
+      g_message (
+        "last btn press %f last btn release %f "
+        "(diff %f)", w->last_btn_press,
+        w->last_btn_release, diff_sec);
+#endif
+      double_click =
+        diff_sec < DOUBLE_CLICK_INTERVAL &&
+        diff_sec > 0.001;
+      if (double_click)
+        {
+          self->last_double_click =
+            w->last_btn_press;
+        }
+    }
 
   double dx = w->app->offset_press_x;
   double dy = w->app->offset_press_y;
   dx -= GRID_XSTART_GLOBAL;
   dy -= GRID_YSTART_GLOBAL;
 
-  if (w->state & ZTK_WIDGET_STATE_PRESSED)
-    {
-      /* move currently dragged node */
-      if (self->dragging_node >= 0)
-        {
-          g_message ("moving %d", self->dragging_node);
-          node_pos_setter (
-            self,
-            (unsigned int) self->dragging_node,
-            (float)
-            CLAMP (dx / GRID_WIDTH, 0.0, 1.0));
-          node_val_setter (
-            self,
-            (unsigned int) self->dragging_node,
-            1.f -
-              (float)
-              CLAMP (dy / GRID_HEIGHT, 0.0, 1.0));
-        }
-    }
   /* create new node */
-  else if (double_click && self->num_nodes < 16)
+  if (double_click && self->num_nodes < 16)
     {
       /* set next available node */
       node_pos_setter (
@@ -1652,6 +1658,25 @@ mid_region_bg_update_cb (
       g_message ("double clicked on new dragging node %d", self->dragging_node);
       num_nodes_setter (
         self, self->num_nodes + 1);
+    }
+  else if (w->state & ZTK_WIDGET_STATE_PRESSED)
+    {
+      /* move currently dragged node */
+      if (self->dragging_node >= 0)
+        {
+          g_message ("moving %d", self->dragging_node);
+          node_pos_setter (
+            self,
+            (unsigned int) self->dragging_node,
+            (float)
+            CLAMP (dx / GRID_WIDTH, 0.0, 1.0));
+          node_val_setter (
+            self,
+            (unsigned int) self->dragging_node,
+            1.f -
+              (float)
+              CLAMP (dy / GRID_HEIGHT, 0.0, 1.0));
+        }
     }
   else
     {
