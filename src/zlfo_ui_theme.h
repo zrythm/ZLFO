@@ -40,11 +40,17 @@ typedef struct ZLfoUiTheme
   /** Button hover color. */
   ZtkColor button_hover;
 
+  /** Active grey color. */
+  ZtkColor button_active;
+
   /** Button click color. */
   ZtkColor button_click;
 
   /** Left button click color. */
   ZtkColor left_button_click;
+
+  /** Bright click color. */
+  ZtkColor bright_click;
 
   /** Line/curve color. */
   ZtkColor line;
@@ -54,6 +60,10 @@ typedef struct ZLfoUiTheme
 
   /** Grid strong line color. */
   ZtkColor grid_strong;
+
+  /** Line below or above the button when hovered. */
+  ZtkColor button_lining_active;
+  ZtkColor button_lining_hover;
 
   ZtkRsvgHandle * sine_svg;
   ZtkRsvgHandle * saw_svg;
@@ -103,14 +113,18 @@ zlfo_ui_theme_init (void)
   zlfo_ui_theme.cname.alpha = 1.0
 
   SET_COLOR (bg, "#323232");
-  SET_COLOR (button_normal, "#5A5A5A");
-  SET_COLOR (button_hover, "#6D6D6D");
-  SET_COLOR (button_click, "#22DAFB");
-  SET_COLOR (left_button_click, "#FF6501");
-  SET_COLOR (line, "#0D5562");
-  SET_COLOR (selected_bg, "#1BAEC9");
-  SET_COLOR (grid_strong, "#86ECFE");
-  SET_COLOR (grid, "#23D9FB");
+  SET_COLOR (button_normal, "#4A4A4A");
+  SET_COLOR (button_hover, "#5D5D5D");
+  SET_COLOR (button_active, "#6D6D6D");
+  SET_COLOR (button_click, "#F79616");
+  SET_COLOR (left_button_click, "#D68A0C");
+  SET_COLOR (bright_click, "#FF6501");
+  SET_COLOR (line, "#D68A0C");
+  SET_COLOR (selected_bg, "#262626");
+  SET_COLOR (grid_strong, "#DDDDDD");
+  SET_COLOR (grid, "#999999");
+  SET_COLOR (button_lining_active, "#2EB398");
+  SET_COLOR (button_lining_hover, "#19664c");
 
   char * abs_path;
 #define LOAD_SVG(name) \

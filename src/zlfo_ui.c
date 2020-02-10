@@ -680,14 +680,18 @@ top_and_bot_btn_bg_cb (
   /* set background */
   ZtkWidgetState state = w->state;
   int is_normal = 0;
+  int is_pressed = 0;
+  int is_hovered = 0;
   if (state & ZTK_WIDGET_STATE_PRESSED ||
       get_button_active ((ZtkButton *) w, data))
     {
       zlfo_ui_theme_set_cr_color (cr, selected_bg);
+      is_pressed = 1;
     }
   else if (state & ZTK_WIDGET_STATE_HOVERED)
     {
       zlfo_ui_theme_set_cr_color (cr, button_hover);
+      is_hovered = 1;
     }
   else
     {
@@ -698,28 +702,71 @@ top_and_bot_btn_bg_cb (
 
   if (data->type == DATA_TYPE_BTN_TOP)
     {
-      cairo_rectangle (
-        cr, w->rect.x, w->rect.y, w->rect.width,
+      double height_with_border =
         is_normal ?
           /* show border if normal */
           w->rect.height - 2 :
-          w->rect.height + 1);
+          w->rect.height + 1;
+
+      cairo_rectangle (
+        cr, w->rect.x, w->rect.y, w->rect.width,
+        height_with_border);
+      cairo_fill (cr);
+
+      /* draw line on bot */
+      if (is_pressed)
+        {
+          zlfo_ui_theme_set_cr_color (
+            cr, button_lining_active);
+        }
+      else if (is_hovered)
+        {
+          zlfo_ui_theme_set_cr_color (
+            cr, button_lining_hover);
+        }
+      cairo_rectangle (
+        cr, w->rect.x,
+        w->rect.y + height_with_border - 4, w->rect.width,
+        4);
+      cairo_fill (cr);
     }
   else if (data->type == DATA_TYPE_BTN_BOT)
     {
-      cairo_rectangle (
-        cr, w->rect.x,
+      double y_with_border =
         is_normal ?
           /* show border if normal */
           w->rect.y :
-          w->rect.y - 3,
-        w->rect.width,
+          w->rect.y - 3;
+      double height_with_border =
         is_normal ?
           /* show border if normal */
           w->rect.height :
-          w->rect.height + 3);
+          w->rect.height + 3;
+
+      cairo_rectangle (
+        cr, w->rect.x,
+        y_with_border,
+        w->rect.width,
+        height_with_border);
+      cairo_fill (cr);
+
+      /* draw line on top */
+      if (is_pressed)
+        {
+          zlfo_ui_theme_set_cr_color (
+            cr, button_lining_active);
+        }
+      else if (is_hovered)
+        {
+          zlfo_ui_theme_set_cr_color (
+            cr, button_lining_hover);
+        }
+      cairo_rectangle (
+        cr, w->rect.x,
+        y_with_border, w->rect.width,
+        4);
+      cairo_fill (cr);
     }
-  cairo_fill (cr);
 
   if (data->type == DATA_TYPE_BTN_BOT)
     {
@@ -824,7 +871,8 @@ sync_rate_control_draw_cb (
   ZLfoUi *    self)
 {
   /* draw black bg */
-  zlfo_ui_theme_set_cr_color (cr, bg);
+  cairo_set_source_rgba (
+    cr, 0, 0, 0, 1);
   cairo_rectangle (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
@@ -900,7 +948,8 @@ freq_control_draw_cb (
   ZLfoUi *    self)
 {
   /* draw black bg */
-  zlfo_ui_theme_set_cr_color (cr, bg);
+  cairo_set_source_rgba (
+    cr, 0, 0, 0, 1);
   cairo_rectangle (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
@@ -1038,11 +1087,12 @@ add_bot_buttons (
       &rect,
       (ZtkWidgetActivateCallback)
       on_sync_rate_type_clicked, self);
+  ZtkColor bg = { 0, 0, 0, 1 };
   ztk_button_set_background_colors (
     btn,
-    &zlfo_ui_theme.bg,
+    &bg,
     &zlfo_ui_theme.button_hover,
-    &zlfo_ui_theme.left_button_click);
+    &zlfo_ui_theme.bright_click);
   ztk_button_make_svged (
     btn, 3, 0,
     zlfo_ui_theme.down_arrow_svg,
