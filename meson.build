@@ -29,6 +29,22 @@ project (
 
 cc = meson.get_compiler ('c')
 
+# detect os
+os_darwin = false
+os_linux = false
+os_freebsd = false
+os_windows = false
+
+if host_machine.system() == 'darwin'
+  os_darwin = true
+elif host_machine.system() == 'linux'
+  os_linux = true
+elif host_machine.system() == 'freebsd'
+  os_freebsd = true
+elif host_machine.system() == 'windows'
+  os_windows = true
+endif
+
 prefix = get_option('prefix')
 bindir = join_paths(prefix, get_option('bindir'))
 libdir = join_paths(prefix, get_option ('libdir'))
@@ -45,8 +61,13 @@ zlfo_cdata.set (
 zlfo_cdata.set (
   'LFO_UI_URI',
   zlfo_cdata.get ('LFO_URI') + '#UI')
-zlfo_cdata.set ('LFO_DSP_BINARY', 'zlfo_dsp.so')
-zlfo_cdata.set ('LFO_UI_BINARY', 'zlfo_ui.so')
+if os_windows
+  zlfo_cdata.set ('LFO_DSP_BINARY', 'zlfo_dsp.dll')
+  zlfo_cdata.set ('LFO_UI_BINARY', 'zlfo_ui.dll')
+else
+  zlfo_cdata.set ('LFO_DSP_BINARY', 'zlfo_dsp.so')
+  zlfo_cdata.set ('LFO_UI_BINARY', 'zlfo_ui.so')
+endif
 zlfo_cdata.set ('LFO_TTL', 'zlfo.ttl')
 if get_option('buildtype') == 'release'
   zlfo_cdata.set ('RELEASE', 1)
@@ -154,6 +175,12 @@ if get_option ('strict_flags')
       '-Weverything',
       ])
   endif
+endif
+
+if os_windows
+  common_cflags += [
+    '-D_WOE32=1',
+    ]
 endif
 
 add_project_arguments (

@@ -382,9 +382,13 @@ int main (
 
   /* write UI */
   fprintf (f,
-"<" LFO_UI_URI ">\n\
-  a ui:X11UI ;\n\
-  lv2:requiredFeature urid:map ,\n\
+"<" LFO_UI_URI ">\n"
+#ifdef _WOE32
+"  a ui:WindowsUI ;\n"
+#else
+"  a ui:X11UI ;\n"
+#endif
+"  lv2:requiredFeature urid:map ,\n\
                       ui:idleInterface ;\n\
   lv2:optionalFeature log:log ,\n\
                       ui:noUserResize ;\n\
