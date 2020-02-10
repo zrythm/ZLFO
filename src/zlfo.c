@@ -59,7 +59,7 @@ typedef struct ZLFO
   const float * sync_rate_type;
   const float * hinvert;
   const float * vinvert;
-  const float * nodes[ZLFO_NUM_NODES][3];
+  const float * nodes[16][3];
 
   /* outputs */
   float *       cv_out;

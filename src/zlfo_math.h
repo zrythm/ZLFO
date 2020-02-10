@@ -35,7 +35,7 @@
 static const float PI = (float) M_PI;
 
 #define math_doubles_equal(a,b) \
-  (a > b ? a - b < DBL_EPSILON : a - b < DBL_EPSILON)
+  (a > b ? a - b < DBL_EPSILON : b - a < DBL_EPSILON)
 
 static inline float
 sync_rate_to_float (

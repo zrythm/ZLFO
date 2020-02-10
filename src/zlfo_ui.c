@@ -176,7 +176,7 @@ typedef struct ZLfoUi
   float            sync_rate;
   float            sync_rate_type;
   float            grid_step;
-  float            nodes[ZLFO_NUM_NODES][3];
+  float            nodes[16][3];
   int              num_nodes;
 
   /* Non-port values */
@@ -211,6 +211,10 @@ typedef struct ZLfoUi
   /** Cache to remember when last double click
    * occured, so that it can be ignored. */
   double           last_double_click;
+
+  /** Timestamp of last delete click, so we
+   * don't delete more than once. */
+  double           last_delete_click;
 
   /** Index of the current node being dragged,
    * or -1. */
@@ -1816,6 +1820,11 @@ mid_region_bg_update_cb (
       num_nodes_setter (
         self, self->num_nodes + 1);
     }
+  else if (w->state &
+             ZTK_WIDGET_STATE_RIGHT_PRESSED)
+    {
+      self->dragging_node = -1;
+    }
   else if (w->state & ZTK_WIDGET_STATE_PRESSED)
     {
       /* move currently dragged node */
@@ -1887,8 +1896,34 @@ node_update_cb (
       return;
     }
 
+  /* delete if right clicked */
+  if (w->state & ZTK_WIDGET_STATE_RIGHT_PRESSED)
+    {
+      g_message ("idx %d last delete %f last b tn press %f", data->idx, self->last_delete_click, w->last_btn_press);
+      if (data->idx != 0 &&
+          !math_doubles_equal (
+            self->last_delete_click,
+            w->last_btn_press))
+        {
+          g_message ("delete");
+          for (int i = data->idx; i < 15; i++)
+            {
+              node_pos_setter (
+                self, (unsigned int) i,
+                self->nodes[i + 1][0]);
+              node_val_setter (
+                self, (unsigned int) i,
+                self->nodes[i + 1][1]);
+              g_message ("index %d", i);
+            }
+          num_nodes_setter (
+            self, self->num_nodes - 1);
+          self->last_delete_click =
+            w->last_btn_press;
+        }
+    }
   /* move if dragged */
-  if (w->state & ZTK_WIDGET_STATE_PRESSED)
+  else if (w->state & ZTK_WIDGET_STATE_PRESSED)
     {
       double dx = w->app->offset_press_x;
       double dy = w->app->offset_press_y;
