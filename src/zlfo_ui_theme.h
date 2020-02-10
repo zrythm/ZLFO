@@ -179,4 +179,11 @@ zlfo_ui_theme_init (void)
   ztk_color_set_for_cairo ( \
     &zlfo_ui_theme.color_name, cr)
 
+#define zlfo_ui_theme_set_cr_color_with_alpha( \
+  cr,color_name,alpha) \
+  cairo_set_source_rgba ( \
+    cr, zlfo_ui_theme.color_name.red, \
+    zlfo_ui_theme.color_name.green, \
+    zlfo_ui_theme.color_name.blue, alpha)
+
 #endif

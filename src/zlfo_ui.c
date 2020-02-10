@@ -1133,6 +1133,37 @@ add_bot_buttons (
     self->app, (ZtkWidget *) control, 2);
 }
 
+typedef struct NodeIndexElement
+{
+  int   index;
+  float pos;
+} NodeIndexElement;
+
+static int
+pos_cmp (const void * a, const void * b)
+{
+  float pos_a = (*(NodeIndexElement*)a).pos;
+  float pos_b = (*(NodeIndexElement*)b).pos;
+  return pos_a > pos_b;
+}
+
+static void
+sort_node_indices_by_pos (
+  ZLfoUi *           self,
+  NodeIndexElement * elements)
+{
+  for (int i = 0; i < self->num_nodes; i++)
+    {
+      /* set index and position */
+      elements[i].index = i;
+      elements[i].pos = self->nodes[i][0];
+    }
+
+  qsort (
+    elements, (size_t) self->num_nodes,
+    sizeof (NodeIndexElement), pos_cmp);
+}
+
 /**
  * Draws the graphs in curve mode.
  */
@@ -1288,14 +1319,22 @@ draw_graph_curves (
     }
 #undef DRAW_VAL
 
+  /* sort node curves by position */
+  /* 2nd dimension is index, position */
+  NodeIndexElement node_indices[self->num_nodes];
+  sort_node_indices_by_pos (
+    self, node_indices);
+
   /* draw node curves */
   zlfo_ui_theme_set_cr_color (cr, line);
   cairo_set_line_width (cr, 6);
   for (int i = 0; i < self->num_nodes - 1; i++)
     {
-      ZtkWidget * nodew = self->node_widgets[i];
+      int index = node_indices[i].index;
+      int next_index = node_indices[i + 1].index;
+      ZtkWidget * nodew = self->node_widgets[index];
       ZtkWidget * next_nodew =
-        self->node_widgets[i + 1];
+        self->node_widgets[next_index];
 
       cairo_move_to (
         cr,
@@ -1309,6 +1348,48 @@ draw_graph_curves (
           next_nodew->rect.height / 2);
       cairo_stroke (cr);
     }
+
+  /* draw line from last node to first node
+   * reappearing at the end */
+  ZtkWidget * first_nodew =
+    self->node_widgets[0];
+  ZtkWidget * last_nodew =
+    self->node_widgets[
+      node_indices[self->num_nodes - 1].index];
+  ZtkRect rect = first_nodew->rect;
+  rect.x = GRID_XEND_GLOBAL - rect.width / 2;
+
+  /* draw line */
+  cairo_move_to (
+    cr,
+    last_nodew->rect.x +
+      last_nodew->rect.width / 2,
+    last_nodew->rect.y +
+      last_nodew->rect.height / 2);
+  cairo_line_to (
+    cr,
+    rect.x + rect.width / 2,
+    rect.y + rect.height / 2);
+  cairo_stroke (cr);
+
+  /* draw faded end node */
+  zlfo_ui_theme_set_cr_color (cr, selected_bg);
+  cairo_arc (
+    cr,
+    rect.x + rect.width / 2,
+    rect.y + rect.width / 2,
+    rect.width / 2,
+    0, 2 * G_PI);
+  cairo_fill (cr);
+  zlfo_ui_theme_set_cr_color (cr, line);
+  cairo_set_line_width (cr, 4);
+  cairo_arc (
+    cr,
+    rect.x + rect.width / 2,
+    rect.y + rect.width / 2,
+    rect.width / 2,
+    0, 2 * G_PI);
+  cairo_stroke (cr);
 }
 
 /**
@@ -1738,10 +1819,8 @@ node_update_cb (
       dx -= GRID_XSTART_GLOBAL;
       dy -= GRID_YSTART_GLOBAL;
 
-      /* first and last nodes should not be
-       * movable */
-      if (data->idx != 0 &&
-          data->idx != self->num_nodes - 1)
+      /* first and node should not be movable */
+      if (data->idx != 0)
         {
           node_pos_setter (
             self, (unsigned int) data->idx,
@@ -1756,7 +1835,6 @@ node_update_cb (
     }
 
   double width = NODE_WIDTH;
-  double total_space = 8 * GRID_SPACE;
   double x_offset =
     (double) self->nodes[data->idx][0];
   double y_offset =
@@ -1766,7 +1844,7 @@ node_update_cb (
   /* set rectangle */
   ZtkRect rect = {
     (GRID_XSTART_GLOBAL +
-      x_offset * total_space) - width / 2,
+      x_offset * GRID_WIDTH) - width / 2,
     (GRID_YSTART_GLOBAL +
       y_offset * total_height) - width / 2,
     width, width };
