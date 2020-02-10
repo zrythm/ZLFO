@@ -176,7 +176,7 @@ typedef struct ZLfoUi
   float            sync_rate;
   float            sync_rate_type;
   float            grid_step;
-  float            nodes[16][3];
+  float            nodes[ZLFO_NUM_NODES][3];
   int              num_nodes;
 
   /* Non-port values */
@@ -1133,12 +1133,6 @@ add_bot_buttons (
     self->app, (ZtkWidget *) control, 2);
 }
 
-typedef struct NodeIndexElement
-{
-  int   index;
-  float pos;
-} NodeIndexElement;
-
 static int
 pos_cmp (const void * a, const void * b)
 {
@@ -1165,6 +1159,59 @@ sort_node_indices_by_pos (
 }
 
 /**
+ * This will return -1 if the next index is
+ * the copy of the first one at the end.
+ */
+static int
+get_next_idx (
+  ZLfoUi *  self,
+  NodeIndexElement * elements,
+  double             ratio)
+{
+  float max_pos = 2.f;
+  int max_idx = 0;
+  for (int i = 0; i < self->num_nodes; i++)
+    {
+      if (elements[i].pos < max_pos &&
+          elements[i].pos >= (float) ratio)
+        {
+          max_pos = elements[i].pos;
+          max_idx = elements[i].index;
+        }
+    }
+
+  /* if no match, the next index is the copy of
+   * the first one */
+  if (max_pos > 1.9f)
+    {
+      return -1;
+    }
+
+  return max_idx;
+}
+
+static int
+get_prev_idx (
+  ZLfoUi *  self,
+  NodeIndexElement * elements,
+  double             ratio)
+{
+  float min_pos = -1.f;
+  int min_idx = 0;
+  for (int i = 0; i < self->num_nodes; i++)
+    {
+      if (elements[i].pos > min_pos &&
+          elements[i].pos <
+            ((float) ratio + 0.0001f))
+        {
+          min_pos = elements[i].pos;
+          min_idx = elements[i].index;
+        }
+    }
+  return min_idx;
+}
+
+/**
  * Draws the graphs in curve mode.
  */
 static void
@@ -1178,6 +1225,10 @@ draw_graph_curves (
     MIN (self->range_max, self->range_min);
   double range = max_range - min_range;
 
+  /* sort node curves by position */
+  NodeIndexElement node_indices[self->num_nodes];
+  sort_node_indices_by_pos (self, node_indices);
+
   cairo_set_source_rgba (
     cr, zlfo_ui_theme.left_button_click.red,
     zlfo_ui_theme.left_button_click.green,
@@ -1187,7 +1238,8 @@ draw_graph_curves (
   cairo_set_line_width (cr, 6);
   double prev_draw_sine,
          prev_draw_triangle,
-         prev_draw_saw, prev_draw_square;
+         prev_draw_saw, prev_draw_square,
+         prev_draw_custom;
   for (int i = 0; i < GRID_WIDTH; i++)
     {
       /* from 0 to GRID_WIDTH */
@@ -1300,6 +1352,35 @@ draw_graph_curves (
       /* square too */
       double square = saw < 0.0 ? -1.0 : 1.0;
 
+      /* get prev and next nodes to calculate
+       * custom */
+      int prev_idx =
+        get_prev_idx (
+          self, node_indices, xval / GRID_WIDTH);
+      int next_idx =
+        get_next_idx (
+          self, node_indices, xval / GRID_WIDTH);
+
+      /* calculate custom */
+      double custom =
+        (double)
+        get_custom_val_at_x (
+          self->nodes[prev_idx][0],
+          self->nodes[prev_idx][1],
+          self->nodes[prev_idx][2],
+          next_idx < 0 ? 1.f :
+            self->nodes[next_idx][0],
+          next_idx < 0 ?
+            self->nodes[0][1] :
+            self->nodes[next_idx][1],
+          next_idx < 0 ?
+            self->nodes[0][2] :
+            self->nodes[next_idx][2],
+          (float) xval, GRID_WIDTH);
+
+      /* adjust for -1 to 1 */
+      custom = custom * 2 - 1;
+
       if (self->visible_waves & WAVE_SINE)
         {
           DRAW_VAL (sine);
@@ -1316,14 +1397,9 @@ draw_graph_curves (
         {
           DRAW_VAL (square);
         }
+        DRAW_VAL (custom);
     }
 #undef DRAW_VAL
-
-  /* sort node curves by position */
-  /* 2nd dimension is index, position */
-  NodeIndexElement node_indices[self->num_nodes];
-  sort_node_indices_by_pos (
-    self, node_indices);
 
   /* draw node curves */
   zlfo_ui_theme_set_cr_color (cr, line);

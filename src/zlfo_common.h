@@ -261,6 +261,12 @@ typedef struct ZLfoCommon
   float         saw_multiplier;
 } ZLfoCommon;
 
+typedef struct NodeIndexElement
+{
+  int   index;
+  float pos;
+} NodeIndexElement;
+
 static inline void
 map_uris (
   LV2_URID_Map* map,
@@ -391,6 +397,38 @@ log_error (
       vfprintf (stderr, fmt, args);
     }
   va_end (args);
+}
+
+/**
+ * Gets the val of the custom graph at x, with
+ * x_size corresponding to the period size.
+ */
+static inline float
+get_custom_val_at_x (
+  const float        prev_node_pos,
+  const float        prev_node_val,
+  const float        prev_node_curve,
+  const float        next_node_pos,
+  const float        next_node_val,
+  const float        next_node_curve,
+  float              x,
+  float              x_size)
+{
+  if (next_node_pos - prev_node_pos < 0.00000001f)
+    return prev_node_val;
+
+  float xratio = x / x_size;
+
+  float range = next_node_pos - prev_node_pos;
+
+  /* x relative to the start of the previous node */
+  float rel_x = xratio - prev_node_pos;
+
+  /* get slope */
+  float m =
+    (next_node_val - prev_node_val) / range;
+
+  return m * (rel_x) + prev_node_val;
 }
 
 #ifndef MAX
