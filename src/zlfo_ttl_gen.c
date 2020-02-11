@@ -154,6 +154,32 @@ int main (
       char comment[800] = "\0";
       switch (i)
         {
+        case ZLFO_SINE_TOGGLE:
+          strcpy (symbol, "sine_toggle");
+          strcpy (name, "Sine toggle");
+          type = PORT_TYPE_TOGGLE;
+          break;
+        case ZLFO_SAW_TOGGLE:
+          strcpy (symbol, "saw_toggle");
+          strcpy (name, "Saw toggle");
+          type = PORT_TYPE_TOGGLE;
+          break;
+        case ZLFO_SQUARE_TOGGLE:
+          strcpy (symbol, "square_toggle");
+          strcpy (name, "Square toggle");
+          type = PORT_TYPE_TOGGLE;
+          break;
+        case ZLFO_TRIANGLE_TOGGLE:
+          strcpy (symbol, "triangle_toggle");
+          strcpy (name, "Triangle toggle");
+          type = PORT_TYPE_TOGGLE;
+          break;
+        case ZLFO_CUSTOM_TOGGLE:
+          strcpy (symbol, "custom_toggle");
+          strcpy (name, "Custom toggle");
+          type = PORT_TYPE_TOGGLE;
+          def = 1.f;
+          break;
         case ZLFO_GATED_MODE:
           strcpy (symbol, "gated_mode");
           strcpy (name, "Gated mode");
@@ -381,17 +407,11 @@ int main (
     a lv2:OutputPort ,\n\
       lv2:CVPort ;\n\
     lv2:index %d ;\n\
-    lv2:symbol \"rnd_out\" ;\n\
-    lv2:name \"Noise\" ;\n\
-  ] , [\n\
-    a lv2:OutputPort ,\n\
-      lv2:CVPort ;\n\
-    lv2:index %d ;\n\
     lv2:symbol \"custom_out\" ;\n\
     lv2:name \"Custom\" ;\n\
   ] .\n\n",
     ZLFO_SINE_OUT, ZLFO_TRIANGLE_OUT, ZLFO_SAW_OUT,
-    ZLFO_SQUARE_OUT, ZLFO_RND_OUT, ZLFO_CUSTOM_OUT);
+    ZLFO_SQUARE_OUT, ZLFO_CUSTOM_OUT);
 
   /* write UI */
   fprintf (f,

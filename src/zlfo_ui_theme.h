@@ -69,7 +69,7 @@ typedef struct ZLfoUiTheme
   ZtkRsvgHandle * saw_svg;
   ZtkRsvgHandle * triangle_svg;
   ZtkRsvgHandle * square_svg;
-  ZtkRsvgHandle * rnd_svg;
+  ZtkRsvgHandle * custom_svg;
   ZtkRsvgHandle * curve_svg;
   ZtkRsvgHandle * step_svg;
   ZtkRsvgHandle * curve_active_svg;
@@ -145,7 +145,7 @@ zlfo_ui_theme_init (void)
   LOAD_SVG (triangle);
   LOAD_SVG (saw);
   LOAD_SVG (square);
-  LOAD_SVG (rnd);
+  LOAD_SVG (custom);
   LOAD_SVG (curve);
   LOAD_SVG (step);
   LOAD_SVG (curve_active);

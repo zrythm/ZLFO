@@ -107,7 +107,7 @@ typedef enum LeftButton
   LEFT_BTN_TRIANGLE,
   LEFT_BTN_SAW,
   LEFT_BTN_SQUARE,
-  LEFT_BTN_RND,
+  LEFT_BTN_CUSTOM,
   NUM_LEFT_BUTTONS,
 } LeftButton;
 
@@ -149,15 +149,6 @@ typedef enum DrawDataType
   DATA_TYPE_LBL,
 } DrawDataType;
 
-typedef enum VisibleWaves
-{
-  WAVE_SINE = 1 << 1,
-  WAVE_SAW = 1 << 2,
-  WAVE_TRIANGLE = 1 << 3,
-  WAVE_SQUARE = 1 << 4,
-  WAVE_RND = 1 << 5,
-} VisibleWaves;
-
 typedef struct ZLfoUi
 {
   /** Port values. */
@@ -173,6 +164,11 @@ typedef struct ZLfoUi
   int              freerun;
   int              hinvert;
   int              vinvert;
+  int              sine_on;
+  int              saw_on;
+  int              square_on;
+  int              triangle_on;
+  int              custom_on;
   float            sync_rate;
   float            sync_rate_type;
   float            grid_step;
@@ -182,8 +178,6 @@ typedef struct ZLfoUi
   /* Non-port values */
 
   ZLfoCommon       common;
-
-  VisibleWaves     visible_waves;
 
   LV2UI_Write_Function write;
   LV2UI_Controller controller;
@@ -226,6 +220,18 @@ typedef struct ZLfoUi
 
   /** Last time the current sample was set at. */
   gint64           last_current_sample_set;
+
+  /** Whether we need to recalculate the caches. */
+  int              has_change;
+
+  ZtkRect          last_rect;
+
+  /** Caches. */
+  float            sine_cache[GRID_WIDTH];
+  float            saw_cache[GRID_WIDTH];
+
+  cairo_t *        cached_cr;
+  cairo_surface_t * cached_surface;
 
   ZtkApp *         app;
 } ZLfoUi;
@@ -270,6 +276,7 @@ sc##_setter ( \
   ztk_debug ( \
     "setting " #sc " to %f", (double) val); \
   SEND_PORT_EVENT (self, ZLFO_##caps, self->sc); \
+  self->has_change = 1; \
 }
 
 DEFINE_GET_SET (SHIFT, shift);
@@ -290,6 +297,7 @@ node_pos_setter (
   self->nodes[idx][0] = val;
   SEND_PORT_EVENT (
     self, ZLFO_NODE_1_POS + idx * 3, val);
+  self->has_change = 1;
 }
 
 static void
@@ -301,6 +309,38 @@ node_val_setter (
   self->nodes[idx][1] = val;
   SEND_PORT_EVENT (
     self, ZLFO_NODE_1_VAL + idx * 3, val);
+  self->has_change = 1;
+}
+
+/**
+ * Resets a surface and cairo_t with a new surface
+ * and cairo_t based on the given rectangle and
+ * cairo_t.
+ *
+ * To be used inside draw calls of widgets that
+ * use caching.
+ */
+static void
+z_cairo_reset_caches (
+  cairo_t **         cr_cache,
+  cairo_surface_t ** surface_cache,
+  int                width,
+  int                height,
+  cairo_t *          new_cr)
+{
+  if (*surface_cache)
+    cairo_surface_destroy (
+      *surface_cache);
+  if (*cr_cache)
+    cairo_destroy (*cr_cache);
+
+  *surface_cache =
+    cairo_surface_create_similar (
+      cairo_get_target (new_cr),
+      CAIRO_CONTENT_COLOR_ALPHA,
+      width, height);
+  *cr_cache =
+    cairo_create (*surface_cache);
 }
 
 static void
@@ -311,12 +351,14 @@ num_nodes_setter (
   self->num_nodes = val;
   SEND_PORT_EVENT (
     self, ZLFO_NUM_NODES, val);
+  self->has_change = 1;
 }
 
 static void
 bg_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
   /* clear background to black first */
@@ -370,6 +412,7 @@ sync_rate_type_activate_cb (
   SEND_PORT_EVENT (
     self, ZLFO_SYNC_RATE_TYPE,
     self->sync_rate_type);
+  self->has_change = 1;
 }
 
 static void
@@ -377,13 +420,14 @@ grid_step_activate_cb (
   ZtkWidget *       widget,
   ComboBoxElement * el)
 {
-  ztk_debug (
-    "activate %p %d %s", el->combo,
-    el->id, el->label);
+  /*ztk_debug (*/
+    /*"activate %p %d %s", el->combo,*/
+    /*el->id, el->label);*/
   ZLfoUi * self = el->zlfo_ui;
   self->grid_step = (float) el->id;
   SEND_PORT_EVENT (
     self, ZLFO_GRID_STEP, self->grid_step);
+  self->has_change = 1;
 }
 
 /**
@@ -406,33 +450,42 @@ on_btn_clicked (
           self->step_mode = 0;
           SEND_PORT_EVENT (
             self, ZLFO_STEP_MODE, self->step_mode);
+          self->has_change = 1;
           break;
         case TOP_BTN_STEP:
           self->step_mode = 1;
           SEND_PORT_EVENT (
             self, ZLFO_STEP_MODE, self->step_mode);
+          self->has_change = 1;
           break;
         }
       break;
     case DATA_TYPE_BTN_LEFT:
       switch (data->val)
         {
-#define HANDLE_BTN(caps) \
+#define HANDLE_BTN(caps,lowercase) \
   case LEFT_BTN_##caps: \
-    if (self->visible_waves & WAVE_##caps) \
+    if (self->lowercase##_on) \
       { \
-        self->visible_waves &= (unsigned int) ~WAVE_##caps; \
+        self->lowercase##_on = 0; \
+        SEND_PORT_EVENT ( \
+          self, ZLFO_##caps##_TOGGLE, 0.f); \
+        self->has_change = 1; \
       } \
     else \
       { \
-        self->visible_waves |= WAVE_##caps; \
+        self->lowercase##_on = 1; \
+        SEND_PORT_EVENT ( \
+          self, ZLFO_##caps##_TOGGLE, 1.f); \
+        self->has_change = 1; \
       } \
     break
-          HANDLE_BTN(SINE);
-          HANDLE_BTN(SAW);
-          HANDLE_BTN(TRIANGLE);
-          HANDLE_BTN(SQUARE);
-          HANDLE_BTN(RND);
+          HANDLE_BTN (SINE, sine);
+          HANDLE_BTN (SAW, saw);
+          HANDLE_BTN (TRIANGLE, triangle);
+          HANDLE_BTN (SQUARE, square);
+          HANDLE_BTN (CUSTOM, custom);
+          self->has_change = 1;
         default:
           break;
         }
@@ -444,11 +497,13 @@ on_btn_clicked (
           self->freerun = 0;
           SEND_PORT_EVENT (
             self, ZLFO_FREE_RUNNING, self->freerun);
+          self->has_change = 1;
           break;
         case BOT_BTN_FREE:
           self->freerun = 1;
           SEND_PORT_EVENT (
             self, ZLFO_FREE_RUNNING, self->freerun);
+          self->has_change = 1;
           break;
         }
       break;
@@ -505,11 +560,13 @@ on_btn_clicked (
           self->hinvert = !self->hinvert;
           SEND_PORT_EVENT (
             self, ZLFO_HINVERT, self->hinvert);
+          self->has_change = 1;
           break;
         case GRID_BTN_VMIRROR:
           self->vinvert = !self->vinvert;
           SEND_PORT_EVENT (
             self, ZLFO_VINVERT, self->vinvert);
+          self->has_change = 1;
           break;
         }
       break;
@@ -581,19 +638,19 @@ get_button_active (
       switch (data->val)
         {
         case LEFT_BTN_SINE:
-          return self->visible_waves & WAVE_SINE;
+          return self->sine_on;
           break;
         case LEFT_BTN_TRIANGLE:
-          return self->visible_waves & WAVE_TRIANGLE;
+          return self->triangle_on;
           break;
         case LEFT_BTN_SAW:
-          return self->visible_waves & WAVE_SAW;
+          return self->saw_on;
           break;
         case LEFT_BTN_SQUARE:
-          return self->visible_waves & WAVE_SQUARE;
+          return self->square_on;
           break;
-        case LEFT_BTN_RND:
-          return self->visible_waves & WAVE_RND;
+        case LEFT_BTN_CUSTOM:
+          return self->custom_on;
           break;
         default:
           break;
@@ -679,7 +736,7 @@ add_left_buttons (
           MAKE_BUTTON_SVGED (TRIANGLE, triangle);
           MAKE_BUTTON_SVGED (SAW, saw);
           MAKE_BUTTON_SVGED (SQUARE, square);
-          MAKE_BUTTON_SVGED (RND, rnd);
+          MAKE_BUTTON_SVGED (CUSTOM, custom);
         }
 
 #undef MAKE_BUTTON_SVGED
@@ -693,6 +750,7 @@ static void
 top_and_bot_btn_bg_cb (
   ZtkWidget * w,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   DrawData *  data)
 {
   /* set background */
@@ -886,6 +944,7 @@ static void
 sync_rate_control_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
   /* draw black bg */
@@ -963,6 +1022,7 @@ static void
 freq_control_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
   /* draw black bg */
@@ -1006,6 +1066,7 @@ sync_rate_control_btn_event_cb (
           self->freerun = 0;
           SEND_PORT_EVENT (
             self, ZLFO_FREE_RUNNING, self->freerun);
+          self->has_change = 1;
         }
     }
   return 1;
@@ -1025,6 +1086,7 @@ freq_control_btn_event_cb (
           self->freerun = 1;
           SEND_PORT_EVENT (
             self, ZLFO_FREE_RUNNING, self->freerun);
+          self->has_change = 1;
         }
     }
   return 1;
@@ -1226,7 +1288,7 @@ get_prev_idx (
  * Draws the graphs in curve mode.
  */
 static void
-draw_graph_curves (
+draw_graph (
   ZLfoUi *  self,
   cairo_t * cr)
 {
@@ -1236,9 +1298,30 @@ draw_graph_curves (
     MIN (self->range_max, self->range_min);
   double range = max_range - min_range;
 
+  double grid_step_divisor =
+    (double)
+    grid_step_to_divisor (
+      (GridStep) self->grid_step);
+  double step_px = GRID_WIDTH / grid_step_divisor;
+
   /* sort node curves by position */
   NodeIndexElement node_indices[self->num_nodes];
   sort_node_indices_by_pos (self, node_indices);
+
+  if (self->has_change)
+    {
+      for (int i = 0; i < GRID_WIDTH; i++)
+        {
+          self->sine_cache[i] =
+            sinf (
+              ((float) i * 2.f * PI) /
+              (float) GRID_WIDTH);
+          self->saw_cache[i] =
+            (1.f - (float) i / (float) GRID_WIDTH) *
+            2.f - 1.f;
+        }
+      /*g_message ("has change");*/
+    }
 
   cairo_set_source_rgba (
     cr, zlfo_ui_theme.left_button_click.red,
@@ -1246,12 +1329,25 @@ draw_graph_curves (
     zlfo_ui_theme.left_button_click.blue,
     GRAPH_OVERLAY_ALPHA);
   cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
-  cairo_set_line_width (cr, 6);
+  if (self->step_mode)
+    cairo_set_line_width (cr, step_px);
+  else
+    cairo_set_line_width (cr, 6);
   double prev_draw_sine,
          prev_draw_triangle,
          prev_draw_saw, prev_draw_square,
          prev_draw_custom;
-  for (int i = 0; i < GRID_WIDTH; i++)
+  int i = 0;
+  double idouble = 0;
+  if (self->step_mode)
+    {
+      idouble = step_px / 2.0;
+      i = (int) idouble;
+    }
+   /* we are approximating so be sure it
+    * doesn't go beyond the width by small
+    * decimals */
+  while (idouble < GRID_WIDTH - 0.01)
     {
       /* from 0 to GRID_WIDTH */
       double xval = (double) i;
@@ -1294,10 +1390,6 @@ draw_graph_curves (
             }
         }
 
-      double samples =
-        (xval / GRID_WIDTH) *
-        (double) self->common.period_size;
-
 #define DRAW_VAL(val) \
   /* invert vertically */ \
   if (self->vinvert) \
@@ -1317,7 +1409,20 @@ draw_graph_curves (
    * in cairo */ \
   draw_val = GRID_HEIGHT - draw_val; \
  \
-  if (i != 0) \
+  if (self->step_mode) \
+    { \
+      /* draw line */ \
+      cairo_move_to ( \
+        cr, \
+        GRID_XSTART_GLOBAL + idouble, \
+        GRID_YSTART_GLOBAL + GRID_HEIGHT); \
+      cairo_line_to ( \
+        cr, \
+        GRID_XSTART_GLOBAL + idouble, \
+        GRID_YSTART_GLOBAL + draw_val); \
+      cairo_stroke (cr); \
+    } \
+  else if (i != 0) \
     { \
       /* draw line */ \
       cairo_move_to ( \
@@ -1335,20 +1440,10 @@ draw_graph_curves (
   prev_draw_##val = draw_val
 
       /* calculate sine */
-      double sine =
-        sin (
-          (samples *
-            (double)
-            self->common.sine_multiplier));
+      double sine = (double) self->sine_cache[(int) xval];
 
       /* calculate saw */
-      double saw =
-        fmod (
-          samples *
-            (double)
-            self->common.saw_multiplier,
-          1.0) * 2.0 - 1.0;
-      saw = - saw;
+      double saw = (double) self->saw_cache[(int) xval];
 
       /* triangle can be calculated based on the
        * saw */
@@ -1392,269 +1487,106 @@ draw_graph_curves (
       /* adjust for -1 to 1 */
       custom = custom * 2 - 1;
 
-      if (self->visible_waves & WAVE_SINE)
+      if (self->sine_on)
         {
           DRAW_VAL (sine);
         }
-      if (self->visible_waves & WAVE_SAW)
+      if (self->saw_on)
         {
           DRAW_VAL (saw);
         }
-      if (self->visible_waves & WAVE_TRIANGLE)
+      if (self->triangle_on)
         {
           DRAW_VAL (triangle);
         }
-      if (self->visible_waves & WAVE_SQUARE)
+      if (self->square_on)
         {
           DRAW_VAL (square);
         }
-        DRAW_VAL (custom);
+      if (self->custom_on)
+        {
+          DRAW_VAL (custom);
+        }
+
+      if (self->step_mode)
+        {
+          idouble += step_px;
+          i = (int) idouble;
+        }
+      else
+        {
+          i++;
+          idouble = (double) i;
+        }
     }
 #undef DRAW_VAL
 
-  /* draw node curves */
-  zlfo_ui_theme_set_cr_color (cr, line);
-  cairo_set_line_width (cr, 6);
-  for (int i = 0; i < self->num_nodes - 1; i++)
+  if (self->custom_on)
     {
-      int index = node_indices[i].index;
-      int next_index = node_indices[i + 1].index;
-      ZtkWidget * nodew = self->node_widgets[index];
-      ZtkWidget * next_nodew =
-        self->node_widgets[next_index];
+      /* draw node curves */
+      zlfo_ui_theme_set_cr_color (cr, line);
+      cairo_set_line_width (cr, 6);
+      for (i = 0; i < self->num_nodes - 1; i++)
+        {
+          int index = node_indices[i].index;
+          int next_index = node_indices[i + 1].index;
+          ZtkWidget * nodew = self->node_widgets[index];
+          ZtkWidget * next_nodew =
+            self->node_widgets[next_index];
 
+          cairo_move_to (
+            cr,
+            nodew->rect.x + nodew->rect.width / 2,
+            nodew->rect.y + nodew->rect.height / 2);
+          cairo_line_to (
+            cr,
+            next_nodew->rect.x +
+              next_nodew->rect.width / 2,
+            next_nodew->rect.y +
+              next_nodew->rect.height / 2);
+          cairo_stroke (cr);
+        }
+
+      /* draw line from last node to first node
+       * reappearing at the end */
+      ZtkWidget * first_nodew =
+        self->node_widgets[0];
+      ZtkWidget * last_nodew =
+        self->node_widgets[
+          node_indices[self->num_nodes - 1].index];
+      ZtkRect rect = first_nodew->rect;
+      rect.x = GRID_XEND_GLOBAL - rect.width / 2;
+
+      /* draw line */
       cairo_move_to (
         cr,
-        nodew->rect.x + nodew->rect.width / 2,
-        nodew->rect.y + nodew->rect.height / 2);
+        last_nodew->rect.x +
+          last_nodew->rect.width / 2,
+        last_nodew->rect.y +
+          last_nodew->rect.height / 2);
       cairo_line_to (
         cr,
-        next_nodew->rect.x +
-          next_nodew->rect.width / 2,
-        next_nodew->rect.y +
-          next_nodew->rect.height / 2);
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2);
       cairo_stroke (cr);
-    }
 
-  /* draw line from last node to first node
-   * reappearing at the end */
-  ZtkWidget * first_nodew =
-    self->node_widgets[0];
-  ZtkWidget * last_nodew =
-    self->node_widgets[
-      node_indices[self->num_nodes - 1].index];
-  ZtkRect rect = first_nodew->rect;
-  rect.x = GRID_XEND_GLOBAL - rect.width / 2;
-
-  /* draw line */
-  cairo_move_to (
-    cr,
-    last_nodew->rect.x +
-      last_nodew->rect.width / 2,
-    last_nodew->rect.y +
-      last_nodew->rect.height / 2);
-  cairo_line_to (
-    cr,
-    rect.x + rect.width / 2,
-    rect.y + rect.height / 2);
-  cairo_stroke (cr);
-
-  /* draw faded end node */
-  zlfo_ui_theme_set_cr_color (cr, selected_bg);
-  cairo_arc (
-    cr,
-    rect.x + rect.width / 2,
-    rect.y + rect.width / 2,
-    rect.width / 2,
-    0, 2 * G_PI);
-  cairo_fill (cr);
-  zlfo_ui_theme_set_cr_color (cr, line);
-  cairo_set_line_width (cr, 4);
-  cairo_arc (
-    cr,
-    rect.x + rect.width / 2,
-    rect.y + rect.width / 2,
-    rect.width / 2,
-    0, 2 * G_PI);
-  cairo_stroke (cr);
-}
-
-/**
- * Draws the graphs in step mode.
- */
-static void
-draw_graph_steps (
-  ZLfoUi *  self,
-  cairo_t * cr)
-{
-  double max_range =
-    MAX (self->range_max, self->range_min);
-  double min_range =
-    MIN (self->range_max, self->range_min);
-  double range = max_range - min_range;
-
-  double grid_step_divisor =
-    (double)
-    grid_step_to_divisor (
-      (GridStep) self->grid_step);
-  double step_px = GRID_WIDTH / grid_step_divisor;
-
-  cairo_set_source_rgba (
-    cr, zlfo_ui_theme.left_button_click.red,
-    zlfo_ui_theme.left_button_click.green,
-    zlfo_ui_theme.left_button_click.blue,
-    GRAPH_OVERLAY_ALPHA);
-  cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
-  cairo_set_line_width (cr, step_px);
-  for (double i = step_px / 2.0;
-       /* we are approximating so be sure it
-        * doesn't go beyond the width by small
-        * decimals */
-       i < (GRID_WIDTH - 0.1);
-       i += step_px)
-    {
-      /* from 0 to GRID_WIDTH */
-      double xval = i;
-
-      /* invert horizontally */
-      if (self->hinvert)
-        {
-          xval = (double) (GRID_WIDTH - i);
-        }
-
-      /* shift */
-      if (self->shift >= 0.5f)
-        {
-          xval +=
-            /* shift ratio */
-            (((double) self->shift - 0.50) *
-               2.0) *
-             /* half the period */
-            (GRID_WIDTH / 2.0);
-
-          /* adjust */
-          while (xval >= GRID_WIDTH)
-            {
-              xval -= GRID_WIDTH;
-            }
-        }
-      else
-        {
-          xval -=
-            /* shift ratio */
-            ((0.50 - (double) self->shift) *
-               2.0) *
-            /* half a period */
-            (GRID_WIDTH / 2.0);
-
-          /* adjust */
-          while (xval < 0.0)
-            {
-              xval += GRID_WIDTH;
-            }
-        }
-
-      double samples =
-        (xval / GRID_WIDTH) *
-        (double) self->common.period_size;
-
-#define DRAW_VAL(val) \
-  /* invert vertically */ \
-  if (self->vinvert) \
-    { \
-      val = - val; \
-    } \
- \
-  /* adjust range */ \
-  val = \
-    min_range + \
-  ((val + 1.0) / 2.0) * range; \
- \
-  double draw_val = \
-    ((val + 1.0) * GRID_HEIGHT) / 2.0; \
- \
-  /* invert because higher Y means lower \
-   * in cairo */ \
-  draw_val = GRID_HEIGHT - draw_val; \
- \
-  /* draw line */ \
-  cairo_move_to ( \
-    cr, \
-    GRID_XSTART_GLOBAL + i, \
-    GRID_YSTART_GLOBAL + GRID_HEIGHT); \
-  cairo_line_to ( \
-    cr, \
-    GRID_XSTART_GLOBAL + i, \
-    GRID_YSTART_GLOBAL + draw_val); \
-  cairo_stroke (cr); \
-
-      /* calculate sine */
-      double sine =
-        sin (
-          (samples *
-            (double)
-            self->common.sine_multiplier));
-
-      /* calculate saw */
-      double saw =
-        fmod (
-          samples *
-            (double)
-            self->common.saw_multiplier,
-          1.0) * 2.0 - 1.0;
-      saw = - saw;
-
-      /* triangle can be calculated based on the
-       * saw */
-      double triangle;
-      if (saw > 0.0)
-        triangle =
-          ((- saw) + 1.0) * 2.0 - 1.0;
-      else
-        triangle =
-          (saw + 1.0) * 2.0 - 1.0;
-
-      /* square too */
-      double square = saw < 0.0 ? - 1.0 : 1.0;
-
-      if (self->visible_waves & WAVE_SINE)
-        {
-          DRAW_VAL (sine);
-        }
-      if (self->visible_waves & WAVE_SAW)
-        {
-          DRAW_VAL (saw);
-        }
-      if (self->visible_waves & WAVE_TRIANGLE)
-        {
-          DRAW_VAL (triangle);
-        }
-      if (self->visible_waves & WAVE_SQUARE)
-        {
-          DRAW_VAL (square);
-        }
-    }
-#undef DRAW_VAL
-
-  /* draw node curves */
-  zlfo_ui_theme_set_cr_color (cr, line);
-  cairo_set_line_width (cr, 6);
-  for (int i = 0; i < self->num_nodes - 1; i++)
-    {
-      ZtkWidget * nodew = self->node_widgets[i];
-      ZtkWidget * next_nodew =
-        self->node_widgets[i + 1];
-
-      cairo_move_to (
+      /* draw faded end node */
+      zlfo_ui_theme_set_cr_color (cr, selected_bg);
+      cairo_arc (
         cr,
-        nodew->rect.x + nodew->rect.width / 2,
-        nodew->rect.y + nodew->rect.height / 2);
-      cairo_line_to (
+        rect.x + rect.width / 2,
+        rect.y + rect.width / 2,
+        rect.width / 2,
+        0, 2 * G_PI);
+      cairo_fill (cr);
+      zlfo_ui_theme_set_cr_color (cr, line);
+      cairo_set_line_width (cr, 4);
+      cairo_arc (
         cr,
-        next_nodew->rect.x +
-          next_nodew->rect.width / 2,
-        next_nodew->rect.y +
-          next_nodew->rect.height / 2);
+        rect.x + rect.width / 2,
+        rect.y + rect.width / 2,
+        rect.width / 2,
+        0, 2 * G_PI);
       cairo_stroke (cr);
     }
 }
@@ -1663,152 +1595,164 @@ static void
 redraw_mid_region (
   ZLfoUi * self)
 {
+#if 0
   PuglRect rect;
-  rect.x = self->mid_region->rect.x;
-  rect.y = self->mid_region->rect.y;
-  rect.width = self->mid_region->rect.width;
-  rect.height =
-    self->mid_region->rect.height;
+  rect.x = GRID_XSTART_GLOBAL;
+  rect.y = GRID_YSTART_GLOBAL;
+  rect.width = GRID_WIDTH;
+  rect.height = GRID_HEIGHT;
   puglPostRedisplayRect (
     self->app->view, rect);
+#endif
+  puglPostRedisplay (
+    self->app->view);
 }
 
 static void
 mid_region_bg_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
-  /* set background */
-  zlfo_ui_theme_set_cr_color (cr, selected_bg);
-  cairo_rectangle (
-    cr, widget->rect.x, widget->rect.y,
-    widget->rect.width, widget->rect.height);
-  cairo_fill (cr);
-
-  float sync_rate_float =
-    sync_rate_to_float (
-      self->sync_rate,
-      self->sync_rate_type);
-
-  /**
-   * Effective frequency.
-   *
-   * This is either the free-running frequency,
-   * or the frequency corresponding to the current
-   * sync rate.
-   */
-  float effective_freq =
-    get_effective_freq (
-      self->freerun, self->freq,
-      &self->common.host_pos, sync_rate_float);
-
-  /* calculate current sample */
-  gint64 cur_time = g_get_monotonic_time ();
-  if (self->last_current_sample_set == 0 ||
-      (!self->freerun &&
-          self->common.host_pos.speed < 0.001f))
+  if (self->has_change ||
+      !ztk_rect_is_equal (
+        draw_rect, &self->last_rect))
     {
-      self->last_current_sample_set = cur_time;
-    }
-  else
-    {
-      double samples_diff =
-        ((double) self->common.samplerate *
-         ((double)
-           (cur_time -
-              self->last_current_sample_set) /
-           1000000.0));
-      self->current_sample += samples_diff;
-      while (self->current_sample >=
-               (double) self->common.period_size)
+      /*ztk_message ("change");*/
+      ztk_rect_copy (
+        &self->last_rect, draw_rect);
+      z_cairo_reset_caches (
+        &self->cached_cr,
+        &self->cached_surface,
+        (int) WIDTH,
+        (int) HEIGHT, cr);
+
+      /* set background */
+      zlfo_ui_theme_set_cr_color (
+        self->cached_cr, selected_bg);
+      cairo_rectangle (
+        self->cached_cr, widget->rect.x, widget->rect.y,
+        widget->rect.width, widget->rect.height);
+      cairo_fill (self->cached_cr);
+
+      float sync_rate_float =
+        sync_rate_to_float (
+          self->sync_rate,
+          self->sync_rate_type);
+
+      /**
+       * Effective frequency.
+       *
+       * This is either the free-running frequency,
+       * or the frequency corresponding to the current
+       * sync rate.
+       */
+      float effective_freq =
+        get_effective_freq (
+          self->freerun, self->freq,
+          &self->common.host_pos, sync_rate_float);
+
+      /* calculate current sample */
+      gint64 cur_time = g_get_monotonic_time ();
+      if (self->last_current_sample_set == 0 ||
+          (!self->freerun &&
+              self->common.host_pos.speed < 0.001f))
         {
-          self->current_sample -=
-            (double) self->common.period_size;
-        }
-      self->last_current_sample_set = cur_time;
-    }
-
-  /* draw grid */
-  for (int i = 0; i < 9; i++)
-    {
-      if ((i % 4) == 0)
-        {
-          zlfo_ui_theme_set_cr_color (
-            cr, grid_strong);
+          self->last_current_sample_set = cur_time;
         }
       else
         {
-          zlfo_ui_theme_set_cr_color (
-            cr, grid);
+          double samples_diff =
+            ((double) self->common.samplerate *
+             ((double)
+               (cur_time -
+                  self->last_current_sample_set) /
+               1000000.0));
+          self->current_sample += samples_diff;
+          while (self->current_sample >=
+                   (double) self->common.period_size)
+            {
+              self->current_sample -=
+                (double) self->common.period_size;
+            }
+          self->last_current_sample_set = cur_time;
         }
-      cairo_move_to (
-        cr,
-        widget->rect.x + GRID_HPADDING +
-          i * GRID_SPACE,
-        widget->rect.y + GRID_YSTART_OFFSET);
-      cairo_line_to (
-        cr,
-        widget->rect.x + GRID_HPADDING +
-          i * GRID_SPACE,
-        widget->rect.y + GRID_YEND_OFFSET);
-      cairo_stroke (cr);
-    }
-  zlfo_ui_theme_set_cr_color (
-    cr, grid_strong);
-  cairo_move_to (
-    cr,
-    GRID_XSTART_GLOBAL,
-    widget->rect.y + 105);
-  cairo_line_to (
-    cr,
-    GRID_XEND_GLOBAL,
-    widget->rect.y + 105);
-  cairo_stroke (cr);
 
-/*#if 0*/
+      /* draw grid */
+      for (int i = 0; i < 9; i++)
+        {
+          if ((i % 4) == 0)
+            {
+              zlfo_ui_theme_set_cr_color (
+                self->cached_cr, grid_strong);
+            }
+          else
+            {
+              zlfo_ui_theme_set_cr_color (
+                self->cached_cr, grid);
+            }
+          cairo_move_to (
+            self->cached_cr,
+            widget->rect.x + GRID_HPADDING +
+              i * GRID_SPACE,
+            widget->rect.y + GRID_YSTART_OFFSET);
+          cairo_line_to (
+            self->cached_cr,
+            widget->rect.x + GRID_HPADDING +
+              i * GRID_SPACE,
+            widget->rect.y + GRID_YEND_OFFSET);
+          cairo_stroke (self->cached_cr);
+        }
+      zlfo_ui_theme_set_cr_color (
+        self->cached_cr, grid_strong);
+      cairo_move_to (
+        self->cached_cr,
+        GRID_XSTART_GLOBAL,
+        widget->rect.y + 105);
+      cairo_line_to (
+        self->cached_cr,
+        GRID_XEND_GLOBAL,
+        widget->rect.y + 105);
+      cairo_stroke (self->cached_cr);
+
+      recalc_vars (
+        self->freerun,
+        &self->common.sine_multiplier,
+        &self->common.saw_multiplier,
+        &self->common.period_size,
+        NULL,
+        &self->common.host_pos, effective_freq,
+        sync_rate_float,
+        (float) self->common.samplerate);
+
+      /* draw other visible waves in the back */
+      draw_graph (self, self->cached_cr);
+    }
+
+  cairo_set_source_surface (
+    cr, self->cached_surface, 0, 0);
+  cairo_paint (cr);
+
   /* draw current position */
-  double total_space = GRID_WIDTH;
   double current_offset =
     self->current_sample /
     (double) self->common.period_size;
-#if 0
-  ztk_message (
-    "current_sample %ld, period size %ld",
-    self->current_sample, self->period_size);
-#endif
+
+  cairo_set_source_rgba (cr, 1, 1, 1, 1);
   cairo_move_to (
     cr,
     widget->rect.x + GRID_HPADDING +
-      current_offset * total_space,
-    widget->rect.y + 46);
+      current_offset * GRID_WIDTH,
+    widget->rect.y + GRID_YSTART_OFFSET);
   cairo_line_to (
     cr,
     widget->rect.x + GRID_HPADDING +
-      current_offset * total_space,
-    widget->rect.y + 164);
+      current_offset * GRID_WIDTH,
+    widget->rect.y + GRID_YEND_OFFSET);
   cairo_stroke (cr);
-/*#endif*/
 
-  recalc_vars (
-    self->freerun,
-    &self->common.sine_multiplier,
-    &self->common.saw_multiplier,
-    &self->common.period_size,
-    NULL,
-    &self->common.host_pos, effective_freq,
-    sync_rate_float,
-    (float) self->common.samplerate);
-
-  /* draw other visible waves in the back */
-  if (self->step_mode)
-    {
-      draw_graph_steps (self, cr);
-    }
-  else
-    {
-      draw_graph_curves (self, cr);
-    }
+  self->has_change = 0;
 }
 
 static void
@@ -2013,9 +1957,13 @@ static void
 node_draw_cb (
   ZtkWidget * w,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   NodeData *  data)
 {
-  /*ZLfoUi * self = data->zlfo_ui;*/
+  ZLfoUi * self = data->zlfo_ui;
+
+  if (!self->custom_on)
+    return;
 
   double width = NODE_WIDTH;
 
@@ -2060,7 +2008,6 @@ add_nodes (
           node_draw_cb,
           NULL, data);
       ZtkWidget * w = (ZtkWidget *) da;
-      self->mid_region = w;
       ztk_widget_set_visible (w, 0);
       self->node_widgets[i] = w;
       ztk_app_add_widget (
@@ -2074,6 +2021,7 @@ static void
 range_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
   /* draw bg svg */
@@ -2179,6 +2127,7 @@ static void
 range_point_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   RangePointData * data)
 {
   double width = RANGE_POINT_WIDTH;
@@ -2254,6 +2203,7 @@ static void
 zrythm_icon_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
   ZtkRect rect = {
@@ -2329,6 +2279,7 @@ static void
 shift_control_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   ZLfoUi *    self)
 {
   ZtkControl * ctrl = (ZtkControl *) widget;
@@ -2409,6 +2360,7 @@ static void
 grid_lbl_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
+  ZtkRect *   draw_rect,
   DrawData *  data)
 {
   /* draw svgs */
@@ -2611,9 +2563,7 @@ instantiate (
   self->write = write_function;
   self->controller = controller;
   self->dragging_node = -1;
-
-  /* FIXME save this in state */
-  self->visible_waves = 0;
+  self->has_change = 1;
 
 #ifndef RELEASE
   ztk_log_set_level (ZTK_LOG_LEVEL_DEBUG);
@@ -2797,6 +2747,26 @@ port_event (
           self->vinvert =
             (int) * (const float *) buffer;
           break;
+        case ZLFO_SINE_TOGGLE:
+          self->sine_on =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_SAW_TOGGLE:
+          self->saw_on =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_SQUARE_TOGGLE:
+          self->square_on =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_TRIANGLE_TOGGLE:
+          self->triangle_on =
+            (int) * (const float *) buffer;
+          break;
+        case ZLFO_CUSTOM_TOGGLE:
+          self->custom_on =
+            (int) * (const float *) buffer;
+          break;
         case ZLFO_NUM_NODES:
           self->num_nodes =
             (int) * (const float *) buffer;
@@ -2819,7 +2789,12 @@ port_event (
           self->nodes[node_id][prop] =
             * (const float *) buffer;
         }
-      puglPostRedisplay (self->app->view);
+      /*puglPostRedisplay (self->app->view);*/
+
+      if (port_index != ZLFO_SAMPLE_TO_UI)
+        {
+          self->has_change = 1;
+        }
     }
   else if (format ==
              self->common.uris.atom_eventTransfer)
@@ -2908,8 +2883,10 @@ port_event (
                 &self->common.uris, obj);
             }
 
+          self->has_change = 1;
+
 /*#if 0*/
-          redraw_mid_region (self);
+          /*redraw_mid_region (self);*/
 /*#endif*/
         }
       else
@@ -2962,6 +2939,7 @@ ui_idle (LV2UI_Handle handle)
   ZLfoUi * self = (ZLfoUi *) handle;
 
   ztk_app_idle (self->app);
+  redraw_mid_region (self);
 
   return 0;
 }

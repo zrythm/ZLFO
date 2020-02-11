@@ -37,6 +37,11 @@
 #define IS_TRIGGERED(x) (*x->trigger > 0.001f)
 #define IS_GATED_MODE(x) (*x->gated_mode > 0.001f)
 #define IS_GATED(x) (*x->gate > 0.001f)
+#define SINE_ON(x) (*x->sine_on > 0.001f)
+#define SQUARE_ON(x) (*x->square_on > 0.001f)
+#define TRIANGLE_ON(x) (*x->triangle_on > 0.001f)
+#define SAW_ON(x) (*x->saw_on > 0.001f)
+#define CUSTOM_ON(x) (*x->custom_on > 0.001f)
 
 typedef struct ZLFO
 {
@@ -59,6 +64,11 @@ typedef struct ZLFO
   const float * sync_rate_type;
   const float * hinvert;
   const float * vinvert;
+  const float * sine_on;
+  const float * saw_on;
+  const float * square_on;
+  const float * triangle_on;
+  const float * custom_on;
   const float * nodes[16][3];
 
   /* outputs */
@@ -67,7 +77,6 @@ typedef struct ZLFO
   float *       saw_out;
   float *       triangle_out;
   float *       square_out;
-  float *       rnd_out;
   float *       custom_out;
   float *       sample_to_ui;
 
@@ -253,6 +262,21 @@ connect_port (
     case ZLFO_VINVERT:
       self->vinvert = (const float *) data;
       break;
+    case ZLFO_SINE_TOGGLE:
+      self->sine_on = (const float *) data;
+      break;
+    case ZLFO_SAW_TOGGLE:
+      self->saw_on = (const float *) data;
+      break;
+    case ZLFO_SQUARE_TOGGLE:
+      self->square_on = (const float *) data;
+      break;
+    case ZLFO_TRIANGLE_TOGGLE:
+      self->triangle_on = (const float *) data;
+      break;
+    case ZLFO_CUSTOM_TOGGLE:
+      self->custom_on = (const float *) data;
+      break;
     case ZLFO_SINE_OUT:
       self->sine_out = (float *) data;
       break;
@@ -264,9 +288,6 @@ connect_port (
       break;
     case ZLFO_SQUARE_OUT:
       self->square_out = (float *) data;
-      break;
-    case ZLFO_RND_OUT:
-      self->rnd_out = (float *) data;
       break;
     case ZLFO_CUSTOM_OUT:
       self->custom_out = (float *) data;
@@ -492,17 +513,6 @@ run (
     MIN (*self->range_max, *self->range_min);
   float range = max_range - min_range;
 
-  /* for random out */
-  float rnd_point =
-    ((float) rand () / (float) ((float) RAND_MAX / 2.f)) -
-      1.f;
-  float prev_rnd_point = 0.f;
-  float m = 0.f;
-  uint32_t rnd_step =
-    n_samples < 16 ? 1 : n_samples / 16;
-  /*uint32_t prev_rnd_x = 0;*/
-  uint32_t rnd_x = 0;
-
   float grid_step_divisor =
     (float)
     grid_step_to_divisor (
@@ -583,52 +593,53 @@ run (
             step_frames / 2;
         }
 
-      /* calculate sine */
-      self->sine_out[i] =
-        sinf (
-          ((float) shifted_current_sample *
-              self->common.sine_multiplier));
+      float ratio =
+         (float) shifted_current_sample /
+         (float) self->common.period_size;
 
-      /* calculate saw */
-      self->saw_out[i] =
-        fmodf (
-          (float) shifted_current_sample *
-            self->common.saw_multiplier, 1.f) * 2.f -
-        1.f;
-      self->saw_out[i] = - self->saw_out[i];
-
-      /* triangle can be calculated based on the
-       * saw */
-      if (self->saw_out[i] > 0.f)
-        self->triangle_out[i] =
-          ((- self->saw_out[i]) + 1.f) * 2.f - 1.f;
-      else
-        self->triangle_out[i] =
-          (self->saw_out[i] + 1.f) * 2.f - 1.f;
-
-      /* square too */
-      self->square_out[i] =
-        self->saw_out[i] < 0.f ? -1.f : 1.f;
-
-      /* for random, calculate 16 random points and
-       * connect them with straight lines */
-      /* FIXME this is not working properly */
-      if (i % rnd_step == 0)
+      if (SINE_ON (self))
         {
-          prev_rnd_point = rnd_point;
-          /*prev_rnd_x = rnd_x;*/
-          rnd_point =
-            ((float) rand () /
-             (float) ((float) RAND_MAX / 2.f)) -
-              1.f;
-          rnd_x = i / rnd_step;
-
-          /* get slope */
-          m =
-            (rnd_point - prev_rnd_point) / (rnd_step);
+          /* calculate sine */
+          self->sine_out[i] =
+            sinf (
+              ((float) shifted_current_sample *
+                  self->common.sine_multiplier));
         }
-      self->rnd_out[i] = m * (i - rnd_x) + rnd_point;
-
+      if (SAW_ON (self))
+        {
+          /* calculate saw */
+          self->saw_out[i] =
+            (1.f - ratio) * 2.f - 1.f;
+        }
+      if (TRIANGLE_ON (self))
+        {
+          if (ratio > 0.4999f)
+            {
+              self->triangle_out[i] =
+                (1.f - ratio) * 4.f - 1.f;
+            }
+          else
+            {
+              self->triangle_out[i] =
+                ratio * 4.f - 1.f;
+            }
+        }
+      if (SQUARE_ON (self))
+        {
+          if (ratio > 0.4999f)
+            {
+              self->square_out[i] = - 1.f;
+            }
+          else
+            {
+              self->square_out[i] = 1.f;
+            }
+        }
+      if (CUSTOM_ON (self))
+        {
+          /*self->custom_out[i] =*/
+            /*get_custom_val_at_x (*/
+        }
 
       /* invert vertically */
       if (*self->vinvert >= 0.01f)
@@ -640,7 +651,6 @@ run (
           INVERT (saw);
           INVERT (triangle);
           INVERT (square);
-          INVERT (rnd);
           INVERT (custom);
 
 #undef INVERT
@@ -655,7 +665,6 @@ run (
           self->saw_out[i] = 0.f;
           self->triangle_out[i] = 0.f;
           self->square_out[i] = 0.f;
-          self->rnd_out[i] = 0.f;
         }
 
       /* adjust range */
@@ -668,7 +677,6 @@ run (
       ADJUST_RANGE (saw);
       ADJUST_RANGE (triangle);
       ADJUST_RANGE (square);
-      ADJUST_RANGE (rnd);
       ADJUST_RANGE (custom);
 
 #undef ADJUST_RANGE
