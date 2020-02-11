@@ -69,6 +69,7 @@ typedef struct ZLFO
   float *       square_out;
   float *       rnd_out;
   float *       custom_out;
+  float *       sample_to_ui;
 
   /** This is how far we are inside a beat, from 0.0
    * to 1.0. */
@@ -87,12 +88,21 @@ typedef struct ZLFO
   /* whether the plugin was freerunning in the
    * last cycle. this is used to detect changes
    * in freerunning/sync. */
-  int was_freerunning;
+  int           was_freerunning;
 
   /** Frequency during the last run. */
-  float last_freq;
-  float last_sync_rate;
-  float last_sync_rate_type;
+  float         last_freq;
+  float         last_sync_rate;
+  float         last_sync_rate_type;
+
+  /* These are used to detect changes so we
+   * can notify the UI. */
+  long          last_period_size;
+  double        last_samplerate;
+
+  /** Flag to be used to send messages to the
+   * UI. */
+  int           first_run_with_ui;
 
 } ZLFO;
 
@@ -261,6 +271,9 @@ connect_port (
     case ZLFO_CUSTOM_OUT:
       self->custom_out = (float *) data;
       break;
+    case ZLFO_SAMPLE_TO_UI:
+      self->sample_to_ui = (float *) data;
+      break;
     default:
       break;
     }
@@ -400,6 +413,8 @@ activate (
 {
   ZLFO * self = (ZLFO*) instance;
 
+  self->first_run_with_ui = 1;
+
   recalc_multipliers (self);
 }
 
@@ -433,6 +448,7 @@ run (
                      self->common.uris.ui_on)
             {
               self->ui_active = 1;
+              self->first_run_with_ui = 1;
             }
           else if (obj->body.otype ==
                      self->common.uris.ui_off)
@@ -675,16 +691,33 @@ run (
     self->current_sample, self->period_size);
 #endif
 
+  if (self->ui_active &&
+      (self->common.period_size !=
+         self->last_period_size ||
+       !math_doubles_equal (
+         self->common.samplerate,
+         self->last_samplerate) ||
+       xport_changed ||
+       self->first_run_with_ui))
+    {
+      /*fprintf (stderr, "sending messages\n");*/
+      send_messages_to_ui (self, xport_changed);
+      self->first_run_with_ui = 0;
+    }
+
+  /* set current sample for UI to pick up */
+  *self->sample_to_ui =
+    (float) self->common.current_sample;
+
   /* remember values */
   self->last_freq = *self->freq;
   self->last_sync_rate = *self->sync_rate;
   self->last_sync_rate_type = *self->sync_rate_type;
   self->was_freerunning = is_freerunning;
-
-  if (self->ui_active)
-    {
-      send_messages_to_ui (self, xport_changed);
-    }
+  self->last_period_size =
+    self->common.period_size;
+  self->last_samplerate =
+    self->common.samplerate;
 }
 
 static void

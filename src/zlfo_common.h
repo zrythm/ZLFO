@@ -87,6 +87,9 @@ typedef enum PortIndex
   ZLFO_CONTROL,
   /** Plugin to UI communication. */
   ZLFO_NOTIFY,
+  /** Plugin to UI communication of the current
+   * sample. */
+  ZLFO_SAMPLE_TO_UI,
 
   ZLFO_CV_GATE,
   ZLFO_CV_TRIGGER,

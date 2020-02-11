@@ -28,6 +28,7 @@
 
 #include "config.h"
 
+#include <float.h>
 #include <math.h>
 
 #include "zlfo_common.h"
@@ -360,9 +361,12 @@ recalc_vars (
     get_period_size (
       freerunning, host_pos, effective_freq,
       sync_rate_float, frames_per_beat, samplerate);
-  *current_sample =
-    get_current_sample (
-      freerunning, host_pos, *period_size);
+  if (current_sample)
+    {
+      *current_sample =
+        get_current_sample (
+          freerunning, host_pos, *period_size);
+    }
 }
 
 #endif

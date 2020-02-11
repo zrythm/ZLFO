@@ -103,9 +103,21 @@ int main (
     lv2:name \"Notify\" ;\n\
     rdfs:comment \"Plugin to GUI communication\" ;\n\
   ] , [\n\
+    a lv2:OutputPort ,\n\
+      lv2:ControlPort ;\n\
+    lv2:index 2 ;\n\
+    lv2:symbol \"sample_to_ui\" ;\n\
+    lv2:name \"Sample to UI\" ;\n\
+    rdfs:comment \"Plugin to GUI communication\" ;\n\
+    lv2:default %d ;\n\
+    lv2:minimum %d ;\n\
+    lv2:maximum %d ;\n\
+    lv2:portProperty lv2:integer ;\n\
+    lv2:portProperty pprop:notOnGUI ;\n\
+  ] , [\n\
     a lv2:InputPort ,\n\
       lv2:CVPort ;\n\
-    lv2:index 2 ;\n\
+    lv2:index 3 ;\n\
     lv2:symbol \"cv_gate\" ;\n\
     lv2:name \"Gate\" ;\n\
     rdfs:comment \"CV gate\" ;\n\
@@ -115,14 +127,15 @@ int main (
   ] , [\n\
     a lv2:InputPort ,\n\
       lv2:CVPort ;\n\
-    lv2:index 3 ;\n\
+    lv2:index 4 ;\n\
     lv2:symbol \"cv_trigger\" ;\n\
     lv2:name \"Trigger\" ;\n\
     rdfs:comment \"CV trigger\" ;\n\
     lv2:default %f ;\n\
     lv2:minimum %f ;\n\
     lv2:maximum %f ;\n\
-  ] , [\n", 0.0, 0.0, 1.0, 0.0, 0.0, 1.0);
+  ] , [\n",
+  0, 0, 30720000, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0);
 
   /* write input controls */
   int index = ZLFO_GATE;

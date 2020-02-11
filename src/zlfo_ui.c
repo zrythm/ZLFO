@@ -220,6 +220,13 @@ typedef struct ZLfoUi
    * or -1. */
   int              dragging_node;
 
+  /** This is double here so we can be more
+   * precise with calculations. */
+  double           current_sample;
+
+  /** Last time the current sample was set at. */
+  gint64           last_current_sample_set;
+
   ZtkApp *         app;
 } ZLfoUi;
 
@@ -1653,6 +1660,20 @@ draw_graph_steps (
 }
 
 static void
+redraw_mid_region (
+  ZLfoUi * self)
+{
+  PuglRect rect;
+  rect.x = self->mid_region->rect.x;
+  rect.y = self->mid_region->rect.y;
+  rect.width = self->mid_region->rect.width;
+  rect.height =
+    self->mid_region->rect.height;
+  puglPostRedisplayRect (
+    self->app->view, rect);
+}
+
+static void
 mid_region_bg_draw_cb (
   ZtkWidget * widget,
   cairo_t *   cr,
@@ -1664,6 +1685,49 @@ mid_region_bg_draw_cb (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
   cairo_fill (cr);
+
+  float sync_rate_float =
+    sync_rate_to_float (
+      self->sync_rate,
+      self->sync_rate_type);
+
+  /**
+   * Effective frequency.
+   *
+   * This is either the free-running frequency,
+   * or the frequency corresponding to the current
+   * sync rate.
+   */
+  float effective_freq =
+    get_effective_freq (
+      self->freerun, self->freq,
+      &self->common.host_pos, sync_rate_float);
+
+  /* calculate current sample */
+  gint64 cur_time = g_get_monotonic_time ();
+  if (self->last_current_sample_set == 0 ||
+      (!self->freerun &&
+          self->common.host_pos.speed < 0.001f))
+    {
+      self->last_current_sample_set = cur_time;
+    }
+  else
+    {
+      double samples_diff =
+        ((double) self->common.samplerate *
+         ((double)
+           (cur_time -
+              self->last_current_sample_set) /
+           1000000.0));
+      self->current_sample += samples_diff;
+      while (self->current_sample >=
+               (double) self->common.period_size)
+        {
+          self->current_sample -=
+            (double) self->common.period_size;
+        }
+      self->last_current_sample_set = cur_time;
+    }
 
   /* draw grid */
   for (int i = 0; i < 9; i++)
@@ -1706,7 +1770,7 @@ mid_region_bg_draw_cb (
   /* draw current position */
   double total_space = GRID_WIDTH;
   double current_offset =
-    (double) self->common.current_sample /
+    self->current_sample /
     (double) self->common.period_size;
 #if 0
   ztk_message (
@@ -1726,29 +1790,12 @@ mid_region_bg_draw_cb (
   cairo_stroke (cr);
 /*#endif*/
 
-  float sync_rate_float =
-    sync_rate_to_float (
-      self->sync_rate,
-      self->sync_rate_type);
-
-  /**
-   * Effective frequency.
-   *
-   * This is either the free-running frequency,
-   * or the frequency corresponding to the current
-   * sync rate.
-   */
-  float effective_freq =
-    get_effective_freq (
-      self->freerun, self->freq,
-      &self->common.host_pos, sync_rate_float);
-
   recalc_vars (
     self->freerun,
     &self->common.sine_multiplier,
     &self->common.saw_multiplier,
     &self->common.period_size,
-    &self->common.current_sample,
+    NULL,
     &self->common.host_pos, effective_freq,
     sync_rate_float,
     (float) self->common.samplerate);
@@ -2754,6 +2801,10 @@ port_event (
           self->num_nodes =
             (int) * (const float *) buffer;
           break;
+        case ZLFO_SAMPLE_TO_UI:
+          self->current_sample =
+            (double) * (const float *) buffer;
+          break;
         default:
           break;
         }
@@ -2826,6 +2877,9 @@ port_event (
                   self->common.current_sample =
                     ((LV2_Atom_Long*)
                      current_sample)->body;
+                  self->current_sample =
+                    (double)
+                    self->common.current_sample;
                   self->common.samplerate =
                     ((LV2_Atom_Double*)
                      samplerate)->body;
@@ -2855,14 +2909,7 @@ port_event (
             }
 
 /*#if 0*/
-          PuglRect rect;
-          rect.x = self->mid_region->rect.x;
-          rect.y = self->mid_region->rect.y;
-          rect.width = self->mid_region->rect.width;
-          rect.height =
-            self->mid_region->rect.height;
-          puglPostRedisplayRect (
-            self->app->view, rect);
+          redraw_mid_region (self);
 /*#endif*/
         }
       else
