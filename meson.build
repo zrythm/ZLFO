@@ -54,7 +54,7 @@ zlfodir = join_paths(lv2dir, 'ZLFO.lv2')
 zlfo_cdata = configuration_data ()
 zlfo_cdata.set (
   'PROJECT_URI',
-  'https://lv2.zrythm.org/plugins')
+  'https://www.zrythm.org/plugins')
 zlfo_cdata.set (
   'LFO_URI',
   zlfo_cdata.get ('PROJECT_URI') + '/ZLFO')

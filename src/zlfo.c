@@ -496,19 +496,18 @@ run (
     ((float) self->common.period_size /
      grid_step_divisor);
 
-  /* handle triggers
-   *
-   * FIXME CV trigger requires splitting the cycle,
-   * but for now it applies to the whole cycle */
-  if (IS_TRIGGERED (self) ||
-      float_array_contains_nonzero (
-        self->cv_trigger, n_samples))
+  /* handle control trigger */
+  if (IS_TRIGGERED (self))
     {
       self->common.current_sample = 0;
     }
 
   for (uint32_t i = 0; i < n_samples; i++)
     {
+      /* handle cv trigger */
+      if (self->cv_trigger[i] > 0.00001f)
+        self->common.current_sample = 0;
+
       /* invert horizontally */
       long shifted_current_sample =
         self->common.current_sample;
