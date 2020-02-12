@@ -7,7 +7,7 @@ automation.
 It comes as a cross-platform LV2 plugin bundle
 with a custom UI.
 
-![screenshot](screenshots/2020_feb_06_zlfo.png)
+![screenshot](screenshots/2020_feb_12_zlfo.png)
 
 ZLFO is written in C and uses
 [ZToolkit](https://git.zrythm.org/cgit/ztoolkit/)
