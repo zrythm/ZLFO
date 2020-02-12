@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with ZLFO.  If not, see <https://www.gnu.org/licenses/>.
 
+inc_dirs = include_directories(['.', '..'])
+
 zlfo_dsp_lib = shared_library (
   'zlfo_dsp',
   name_prefix: '',
@@ -22,7 +24,7 @@ zlfo_dsp_lib = shared_library (
     'zlfo.c',
     ],
   dependencies: zlfo_deps,
-  include_directories: [ '.', '..' ],
+  include_directories: inc_dirs,
   install: true,
   install_dir: zlfodir,
   )
@@ -38,7 +40,7 @@ zlfo_ui_lib = shared_library (
     ztoolkit_dep,
     dependency('glib-2.0'),
     ],
-  include_directories: [ '.', '..' ],
+  include_directories: inc_dirs,
   install: true,
   install_dir: zlfodir,
   )
@@ -60,7 +62,7 @@ lv2_ttl_gen = executable (
   sources: [
     'zlfo_ttl_gen.c',
     ],
-  include_directories: [ '.', '..' ],
+  include_directories: inc_dirs,
   c_args: common_cflags,
   install: false,
   )

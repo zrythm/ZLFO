@@ -46,13 +46,14 @@
 
 #include <cairo.h>
 
-#include <lv2/atom/atom.h>
-#include <lv2/atom/forge.h>
+/* use old style for now until distros catch up */
+#if 0
 #include <lv2/atom/util.h>
-#include <lv2/log/log.h>
-#include <lv2/patch/patch.h>
-#include <lv2/urid/urid.h>
 #include <lv2/ui/ui.h>
+#endif
+#include "lv2/lv2plug.in/ns/ext/atom/util.h"
+#include "lv2/lv2plug.in/ns/extensions/ui/ui.h"
+
 #include <ztoolkit/ztk.h>
 
 #define TITLE "ZLFO"
