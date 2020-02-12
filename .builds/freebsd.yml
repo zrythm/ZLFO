@@ -1,0 +1,23 @@
+image: freebsd/latest
+packages:
+  - meson
+  - ninja
+  - python36
+  - pkgconf
+  - libX11
+  - cairo
+  - librsvg2
+  - lv2lint
+  - lv2
+sources:
+  - https://git.sr.ht/~alextee/ZLFO
+tasks:
+  - setup: |
+      cd ZLFO
+      meson build
+  - build: |
+      cd ZLFO
+      ninja -C build
+  - test: |
+      cd ZLFO
+      ninja -C build test

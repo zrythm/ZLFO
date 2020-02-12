@@ -1,6 +1,8 @@
 ZLFO
 ====
 
+[![builds.sr.ht status](https://builds.sr.ht/~alextee/ZLFO.svg)](https://builds.sr.ht/~alextee/ZLFO?)
+
 ZLFO is a fully featured LFO for CV-based
 automation.
 
