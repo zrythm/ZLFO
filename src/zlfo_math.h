@@ -422,4 +422,83 @@ invert_and_shift_xval (
   return ret;
 }
 
+/**
+ * This will return -1 if the next index is
+ * the copy of the first one at the end.
+ */
+static inline int
+get_next_idx (
+  NodeIndexElement * elements,
+  int                num_nodes,
+  float              ratio)
+{
+  float max_pos = 2.f;
+  int max_idx = 0;
+  for (int i = 0; i < num_nodes; i++)
+    {
+      if (elements[i].pos < max_pos &&
+          elements[i].pos >= ratio)
+        {
+          max_pos = elements[i].pos;
+          max_idx = elements[i].index;
+        }
+    }
+
+  /* if no match, the next index is the copy of
+   * the first one */
+  if (max_pos > 1.9f)
+    {
+      return -1;
+    }
+
+  return max_idx;
+}
+
+static inline int
+get_prev_idx (
+  NodeIndexElement * elements,
+  int                num_nodes,
+  float              ratio)
+{
+  float min_pos = -1.f;
+  int min_idx = 0;
+  for (int i = 0; i < num_nodes; i++)
+    {
+      if (elements[i].pos > min_pos &&
+          elements[i].pos <
+            (ratio + 0.0001f))
+        {
+          min_pos = elements[i].pos;
+          min_idx = elements[i].index;
+        }
+    }
+  return min_idx;
+}
+
+static int
+pos_cmp (const void * a, const void * b)
+{
+  float pos_a = (*(NodeIndexElement*)a).pos;
+  float pos_b = (*(NodeIndexElement*)b).pos;
+  return pos_a > pos_b;
+}
+
+static inline void
+sort_node_indices_by_pos (
+  float              nodes[16][3],
+  NodeIndexElement * elements,
+  int                num_nodes)
+{
+  for (int i = 0; i < num_nodes; i++)
+    {
+      /* set index and position */
+      elements[i].index = i;
+      elements[i].pos = nodes[i][0];
+    }
+
+  qsort (
+    elements, (size_t) num_nodes,
+    sizeof (NodeIndexElement), pos_cmp);
+}
+
 #endif

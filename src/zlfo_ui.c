@@ -1221,84 +1221,6 @@ add_bot_buttons (
     self->app, (ZtkWidget *) control, 2);
 }
 
-static int
-pos_cmp (const void * a, const void * b)
-{
-  float pos_a = (*(NodeIndexElement*)a).pos;
-  float pos_b = (*(NodeIndexElement*)b).pos;
-  return pos_a > pos_b;
-}
-
-static void
-sort_node_indices_by_pos (
-  ZLfoUi *           self,
-  NodeIndexElement * elements)
-{
-  for (int i = 0; i < self->num_nodes; i++)
-    {
-      /* set index and position */
-      elements[i].index = i;
-      elements[i].pos = self->nodes[i][0];
-    }
-
-  qsort (
-    elements, (size_t) self->num_nodes,
-    sizeof (NodeIndexElement), pos_cmp);
-}
-
-/**
- * This will return -1 if the next index is
- * the copy of the first one at the end.
- */
-static int
-get_next_idx (
-  ZLfoUi *  self,
-  NodeIndexElement * elements,
-  double             ratio)
-{
-  float max_pos = 2.f;
-  int max_idx = 0;
-  for (int i = 0; i < self->num_nodes; i++)
-    {
-      if (elements[i].pos < max_pos &&
-          elements[i].pos >= (float) ratio)
-        {
-          max_pos = elements[i].pos;
-          max_idx = elements[i].index;
-        }
-    }
-
-  /* if no match, the next index is the copy of
-   * the first one */
-  if (max_pos > 1.9f)
-    {
-      return -1;
-    }
-
-  return max_idx;
-}
-
-static int
-get_prev_idx (
-  ZLfoUi *  self,
-  NodeIndexElement * elements,
-  double             ratio)
-{
-  float min_pos = -1.f;
-  int min_idx = 0;
-  for (int i = 0; i < self->num_nodes; i++)
-    {
-      if (elements[i].pos > min_pos &&
-          elements[i].pos <
-            ((float) ratio + 0.0001f))
-        {
-          min_pos = elements[i].pos;
-          min_idx = elements[i].index;
-        }
-    }
-  return min_idx;
-}
-
 /**
  * Draws the graphs in curve mode.
  */
@@ -1321,7 +1243,9 @@ draw_graph (
 
   /* sort node curves by position */
   NodeIndexElement node_indices[self->num_nodes];
-  sort_node_indices_by_pos (self, node_indices);
+  sort_node_indices_by_pos (
+    self->nodes, node_indices,
+    self->num_nodes);
 
   if (self->has_change)
     {
@@ -1423,73 +1347,85 @@ draw_graph (
     } \
   prev_draw_##val = draw_val
 
-      /* calculate sine */
-      double sine =
-        (double) self->sine_cache[xvall];
-
-      /* calculate saw */
-      double saw =
-        (double) self->saw_cache[xvall];
-
-      /* triangle can be calculated based on the
-       * saw */
-      double triangle;
-      if (saw > 0.0)
-        triangle =
-          ((- saw) + 1.0) * 2.0 - 1.0;
-      else
-        triangle =
-          (saw + 1.0) * 2.0 - 1.0;
-
-      /* square too */
-      double square = saw < 0.0 ? -1.0 : 1.0;
-
       double ratio = xvald / GRID_WIDTH;
-      int prev_idx =
-        get_prev_idx (
-          self, node_indices, ratio);
-      int next_idx =
-        get_next_idx (
-          self, node_indices, ratio);
-
-      /* calculate custom */
-      double custom =
-        (double)
-        get_custom_val_at_x (
-          self->nodes[prev_idx][0],
-          self->nodes[prev_idx][1],
-          self->nodes[prev_idx][2],
-          next_idx < 0 ? 1.f :
-            self->nodes[next_idx][0],
-          next_idx < 0 ?
-            self->nodes[0][1] :
-            self->nodes[next_idx][1],
-          next_idx < 0 ?
-            self->nodes[0][2] :
-            self->nodes[next_idx][2],
-          (float) xvald, GRID_WIDTH);
-
-      /* adjust for -1 to 1 */
-      custom = custom * 2 - 1;
 
       if (self->sine_on)
         {
+          /* calculate sine */
+          double sine =
+            (double) self->sine_cache[xvall];
+
           DRAW_VAL (sine);
         }
       if (self->saw_on)
         {
+          /* calculate saw */
+          double saw =
+            (double) self->saw_cache[xvall];
+
           DRAW_VAL (saw);
         }
       if (self->triangle_on)
         {
+          double triangle;
+          if (ratio > 0.4999)
+            {
+              triangle =
+                (1.0 - ratio) * 4.0 - 1.0;
+            }
+          else
+            {
+              triangle =
+                ratio * 4.0 - 1.0;
+            }
+
           DRAW_VAL (triangle);
         }
       if (self->square_on)
         {
+          double square;
+          if (ratio > 0.4999)
+            {
+              square = - 1.0;
+            }
+          else
+            {
+              square = 1.0;
+            }
+
           DRAW_VAL (square);
         }
       if (self->custom_on)
         {
+          int prev_idx =
+            get_prev_idx (
+              node_indices, self->num_nodes,
+              (float) ratio);
+          int next_idx =
+            get_next_idx (
+              node_indices, self->num_nodes,
+              (float) ratio);
+
+          /* calculate custom */
+          double custom =
+            (double)
+            get_custom_val_at_x (
+              self->nodes[prev_idx][0],
+              self->nodes[prev_idx][1],
+              self->nodes[prev_idx][2],
+              next_idx < 0 ? 1.f :
+                self->nodes[next_idx][0],
+              next_idx < 0 ?
+                self->nodes[0][1] :
+                self->nodes[next_idx][1],
+              next_idx < 0 ?
+                self->nodes[0][2] :
+                self->nodes[next_idx][2],
+              (float) xvald, GRID_WIDTH);
+
+          /* adjust for -1 to 1 */
+          custom = custom * 2 - 1;
+
           DRAW_VAL (custom);
         }
 

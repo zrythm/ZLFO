@@ -70,6 +70,7 @@ typedef struct ZLFO
   const float * triangle_on;
   const float * custom_on;
   const float * nodes[16][3];
+  const float * num_nodes;
 
   /* outputs */
   float *       cv_out;
@@ -294,6 +295,9 @@ connect_port (
       break;
     case ZLFO_SAMPLE_TO_UI:
       self->sample_to_ui = (float *) data;
+      break;
+    case ZLFO_NUM_NODES:
+      self->num_nodes = (float *) data;
       break;
     default:
       break;
@@ -522,6 +526,21 @@ run (
     ((float) self->common.period_size /
      grid_step_divisor);
 
+  /* sort node curves by position */
+  NodeIndexElement node_indices[
+    (int) *self->num_nodes];
+  float nodes[16][3];
+  for (int i = 0; i < 16; i++)
+    {
+      for (int j = 0; j < 3; j++)
+        {
+          nodes[i][j] = *(self->nodes[i][j]);
+        }
+    }
+  sort_node_indices_by_pos (
+    nodes, node_indices,
+    (int) *self->num_nodes);
+
   /* handle control trigger */
   if (IS_TRIGGERED (self))
     {
@@ -596,8 +615,35 @@ run (
         }
       if (CUSTOM_ON (self))
         {
-          /*self->custom_out[i] =*/
-            /*get_custom_val_at_x (*/
+          int prev_idx =
+            get_prev_idx (
+              node_indices, (int) * self->num_nodes,
+              (float) ratio);
+          int next_idx =
+            get_next_idx (
+              node_indices, (int) * self->num_nodes,
+              (float) ratio);
+
+          /* calculate custom */
+          self->custom_out[i] =
+            get_custom_val_at_x (
+              *self->nodes[prev_idx][0],
+              *self->nodes[prev_idx][1],
+              *self->nodes[prev_idx][2],
+              next_idx < 0 ? 1.f :
+                *self->nodes[next_idx][0],
+              next_idx < 0 ?
+                *self->nodes[0][1] :
+                *self->nodes[next_idx][1],
+              next_idx < 0 ?
+                *self->nodes[0][2] :
+                *self->nodes[next_idx][2],
+              shifted_current_sample,
+              self->common.period_size);
+
+          /* adjust for -1 to 1 */
+          self->custom_out[i] =
+            self->custom_out[i] * 2 - 1;
         }
 
       /* invert vertically */
