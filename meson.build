@@ -70,29 +70,31 @@ else
 endif
 zlfo_cdata.set ('LFO_TTL', 'zlfo.ttl')
 
-zlfo_cdata_quoted = configuration_data ()
-zlfo_cdata_quoted.set_quoted (
+config_h_data = configuration_data ()
+config_h_data.set_quoted (
   'PROJECT_URI',
   zlfo_cdata.get ('PROJECT_URI'))
-zlfo_cdata_quoted.set_quoted (
+config_h_data.set_quoted (
   'LFO_URI',
   zlfo_cdata.get ('LFO_URI'))
-zlfo_cdata_quoted.set_quoted (
+config_h_data.set_quoted (
   'LFO_UI_URI',
   zlfo_cdata.get ('LFO_UI_URI'))
-zlfo_cdata_quoted.set_quoted (
+config_h_data.set_quoted (
   'INSTALL_PATH', zlfodir)
 if get_option('128_bars_sync')
-  zlfo_cdata_quoted.set ('HAVE_128_BARS', 1)
+  config_h_data.set ('HAVE_128_BARS', 1)
 endif
 if get_option('buildtype') == 'release'
-  zlfo_cdata_quoted.set ('RELEASE', 1)
+  config_h_data.set ('RELEASE', 1)
 endif
+config_h_data.set_quoted (
+  'ZLFO_VERSION', meson.project_version())
 
 # create config.h
 zlfo_config_h = configure_file (
   output: 'config.h',
-  configuration: zlfo_cdata_quoted,
+  configuration: config_h_data,
   )
 zlfo_config_h_dep = declare_dependency (
   sources: zlfo_config_h,

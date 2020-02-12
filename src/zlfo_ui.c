@@ -2125,6 +2125,7 @@ add_range (
     self->app, (ZtkWidget *) da, 0);
 }
 
+#if 0
 static void
 zrythm_icon_draw_cb (
   ZtkWidget * widget,
@@ -2158,6 +2159,33 @@ zrythm_icon_draw_cb (
         zlfo_ui_theme.zrythm_svg, cr, &rect);
     }
 }
+#endif
+
+static void
+on_zrythm_btn_clicked (
+  ZtkWidget * widget,
+  ZLfoUi *    self)
+{
+  const double width = 378;
+  const double height = 180;
+  ZtkRect full_rect = {
+    0, 0, WIDTH, HEIGHT };
+  ZtkRect rect = {
+    WIDTH / 2 - width / 2,
+    HEIGHT / 2 - height / 2,
+    width, height };
+  ZtkDialog * dialog =
+    ztk_dialog_new (
+      widget->app, &full_rect, &rect, self);
+  ztk_dialog_make_about (
+    dialog, "ZLFO",
+    "v" ZLFO_VERSION,
+    "Copyright (C) 2020 Alexandros Theodotou",
+    ZTK_DIALOG_ABOUT_LICENSE_AGPL_3_PLUS,
+    "Design by Mire");
+  ztk_app_add_widget (
+    self->app, (ZtkWidget *) dialog, 400);
+}
 
 static void
 add_zrythm_icon (
@@ -2166,13 +2194,18 @@ add_zrythm_icon (
   ZtkRect rect = {
     LEFT_BTN_WIDTH + MID_REGION_WIDTH + 8,
     6, 30, 30 };
-  ZtkDrawingArea * da =
-    ztk_drawing_area_new (
-      &rect, NULL,
-      (ZtkWidgetDrawCallback) zrythm_icon_draw_cb,
-      NULL, self);
+  ZtkButton * btn =
+    ztk_button_new (
+      &rect,
+      (ZtkWidgetActivateCallback)
+      on_zrythm_btn_clicked, self);
+  ztk_button_make_svged (
+    btn, 0, 0,
+    zlfo_ui_theme.zrythm_svg,
+    zlfo_ui_theme.zrythm_hover_svg,
+    zlfo_ui_theme.zrythm_orange_svg);
   ztk_app_add_widget (
-    self->app, (ZtkWidget *) da, 0);
+    self->app, (ZtkWidget *) btn, 0);
 }
 
 /**
