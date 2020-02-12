@@ -488,7 +488,7 @@ run (
       self->last_freq, *self->freq);
   int is_freerunning = *self->freerun > 0.0001f;
   int sync_or_freerun_mode_changed =
-    self->was_freerunning && !is_freerunning;
+    self->was_freerunning != is_freerunning;
   int sync_rate_changed =
     !(math_floats_equal (
       self->last_sync_rate, *self->sync_rate) &&

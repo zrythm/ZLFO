@@ -1450,8 +1450,10 @@ draw_graph (
       for (i = 0; i < self->num_nodes - 1; i++)
         {
           int index = node_indices[i].index;
-          int next_index = node_indices[i + 1].index;
-          ZtkWidget * nodew = self->node_widgets[index];
+          int next_index =
+            node_indices[i + 1].index;
+          ZtkWidget * nodew =
+            self->node_widgets[index];
           ZtkWidget * next_nodew =
             self->node_widgets[next_index];
 
