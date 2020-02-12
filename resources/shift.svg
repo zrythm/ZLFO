@@ -15,7 +15,7 @@
    version="1.1"
    id="svg1923"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="shift.svg">
+   sodipodi:docname="shift_rendered.svg">
   <defs
      id="defs1917" />
   <sodipodi:namedview
@@ -26,7 +26,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="15.839192"
-     inkscape:cx="6.4803577"
+     inkscape:cx="-5.2626656"
      inkscape:cy="12.983332"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
@@ -54,18 +54,35 @@
      inkscape:groupmode="layer"
      id="layer1"
      transform="translate(0,-292.76661)">
-    <text
-       xml:space="preserve"
+    <g
+       aria-label="SHIFT"
        style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.03217506px;line-height:1.25;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';letter-spacing:0px;word-spacing:0px;display:inline;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.05080436"
-       x="0.88630295"
-       y="295.69867"
-       id="text2182"
-       inkscape:export-xdpi="96"
-       inkscape:export-ydpi="96"><tspan
-         sodipodi:role="line"
-         id="tspan2180"
-         x="0.88630295"
-         y="295.69867"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436">SHIFT</tspan></text>
+       id="text2182">
+      <path
+         d="m 1.5372149,295.72217 c 0.3994766,0 0.6368127,-0.19739 0.6368127,-0.50287 0,-0.58982 -0.8576998,-0.38538 -0.8576998,-0.71436 0,-0.12454 0.1151433,-0.19504 0.3172314,-0.19504 0.1362921,0 0.2843334,0.0258 0.3994767,0.0705 l 0.086945,-0.23969 c -0.1386419,-0.0611 -0.307832,-0.0963 -0.4676227,-0.0963 -0.3900771,0 -0.6509119,0.19973 -0.6509119,0.50757 0,0.55691 0.85535,0.37362 0.85535,0.70496 0,0.11984 -0.103394,0.19268 -0.3054821,0.19268 -0.1480414,0 -0.3289808,-0.0329 -0.4911213,-0.10104 l -0.0845951,0.24439 c 0.1738899,0.0799 0.3736282,0.12924 0.5616172,0.12924 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path814"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 2.4629139,295.69867 h 0.307832 v -0.70026 h 0.7472563 v 0.70026 h 0.307832 v -1.63081 h -0.307832 v 0.66032 H 2.7707459 v -0.66032 h -0.307832 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path816"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 4.2253109,295.69867 h 0.307832 v -1.63081 h -0.307832 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path818"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 4.9321054,295.69867 h 0.307832 v -0.67911 h 0.7049587 v -0.26554 H 5.2399374 v -0.42062 h 0.7825042 v -0.26554 H 4.9321054 Z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path820"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 6.6662672,295.69867 h 0.3007824 v -1.36527 h 0.5240193 v -0.26554 H 6.1445977 v 0.26554 h 0.5216695 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path822"
+         inkscape:connector-curvature="0" />
+    </g>
   </g>
 </svg>

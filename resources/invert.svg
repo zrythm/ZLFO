@@ -15,7 +15,7 @@
    version="1.1"
    id="svg1923"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="invert.svg">
+   sodipodi:docname="invert_rendered.svg">
   <defs
      id="defs1917" />
   <sodipodi:namedview
@@ -26,7 +26,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="15.839192"
-     inkscape:cx="6.4803577"
+     inkscape:cx="-5.2626656"
      inkscape:cy="12.983332"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
@@ -54,18 +54,40 @@
      inkscape:groupmode="layer"
      id="layer1"
      transform="translate(0,-292.76666)">
-    <text
-       xml:space="preserve"
+    <g
+       aria-label="INVERT"
        style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.03217506px;line-height:1.25;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';letter-spacing:0px;word-spacing:0px;display:inline;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.05080436"
-       x="-0.077654816"
-       y="295.69873"
-       id="text2182"
-       inkscape:export-xdpi="96"
-       inkscape:export-ydpi="96"><tspan
-         sodipodi:role="line"
-         id="tspan2180"
-         x="-0.077654816"
-         y="295.69873"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436">INVERT</tspan></text>
+       id="text2182">
+      <path
+         d="m 0.1220835,295.69873 h 0.307832 v -1.6308 h -0.307832 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path814"
+         inkscape:connector-curvature="0" />
+      <path
+         d="M 0.82887812,295.69873 H 1.1155614 v -1.21723 l 0.8013031,1.21723 h 0.3383802 v -1.6308 H 1.9662116 l -0.00235,1.21487 -0.7872039,-1.21487 H 0.82887812 Z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path816"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 3.0691049,295.69873 h 0.3148816 l 0.5874656,-1.6308 H 3.6612703 L 3.2406449,295.3392 2.8364685,294.06793 H 2.4839891 Z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path818"
+         inkscape:connector-curvature="0" />
+      <path
+         d="M 4.1976264,295.69873 H 5.2973621 V 295.4332 H 4.5007587 v -0.43708 H 5.231566 v -0.26553 H 4.5007587 v -0.39713 h 0.7966034 v -0.26553 H 4.1976264 Z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path820"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 5.6203945,295.69873 h 0.3031323 v -0.60861 h 0.2749339 l 0.3477797,0.60861 H 6.9104691 L 6.501593,295.02667 c 0.187989,-0.0893 0.3054821,-0.26318 0.3054821,-0.48407 0,-0.30078 -0.220887,-0.47467 -0.5780661,-0.47467 H 5.6203945 Z m 0.5686668,-1.36762 c 0.1903389,0 0.3031323,0.0963 0.3031323,0.25849 0,0.15274 -0.093994,0.24438 -0.2631846,0.24438 H 5.9235268 v -0.50287 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path822"
+         inkscape:connector-curvature="0" />
+      <path
+         d="m 7.5197814,295.69873 h 0.3007824 v -1.36527 h 0.5240194 v -0.26553 H 6.9981119 v 0.26553 h 0.5216695 z"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.34986258px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';fill:#ffffff;fill-opacity:1;stroke-width:0.05080436"
+         id="path824"
+         inkscape:connector-curvature="0" />
+    </g>
   </g>
 </svg>
