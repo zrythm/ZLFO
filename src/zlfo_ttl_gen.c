@@ -207,7 +207,7 @@ int main (
           type = PORT_TYPE_INT;
           defi = SYNC_1_4;
           mini = 0;
-          maxi = SYNC_4_1;
+          maxi = NUM_SYNC_RATES - 1;
           break;
         case ZLFO_GRID_STEP:
           strcpy (symbol, "grid_step");

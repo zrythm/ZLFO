@@ -69,9 +69,6 @@ else
   zlfo_cdata.set ('LFO_UI_BINARY', 'zlfo_ui.so')
 endif
 zlfo_cdata.set ('LFO_TTL', 'zlfo.ttl')
-if get_option('buildtype') == 'release'
-  zlfo_cdata.set ('RELEASE', 1)
-endif
 
 zlfo_cdata_quoted = configuration_data ()
 zlfo_cdata_quoted.set_quoted (
@@ -85,6 +82,12 @@ zlfo_cdata_quoted.set_quoted (
   zlfo_cdata.get ('LFO_UI_URI'))
 zlfo_cdata_quoted.set_quoted (
   'INSTALL_PATH', zlfodir)
+if get_option('64_bars_sync')
+  zlfo_cdata_quoted.set ('HAVE_64_BARS', 1)
+endif
+if get_option('buildtype') == 'release'
+  zlfo_cdata_quoted.set ('RELEASE', 1)
+endif
 
 # create config.h
 zlfo_config_h = configure_file (

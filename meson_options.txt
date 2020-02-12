@@ -20,3 +20,9 @@ option (
   type: 'boolean',
   value: false,
   description: 'Enable strict compilation flags')
+
+option (
+  '64_bars_sync',
+  type: 'boolean',
+  value: false,
+  description: 'Enable sync up to 64/1')
