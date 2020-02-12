@@ -82,8 +82,8 @@ zlfo_cdata_quoted.set_quoted (
   zlfo_cdata.get ('LFO_UI_URI'))
 zlfo_cdata_quoted.set_quoted (
   'INSTALL_PATH', zlfodir)
-if get_option('64_bars_sync')
-  zlfo_cdata_quoted.set ('HAVE_64_BARS', 1)
+if get_option('128_bars_sync')
+  zlfo_cdata_quoted.set ('HAVE_128_BARS', 1)
 endif
 if get_option('buildtype') == 'release'
   zlfo_cdata_quoted.set ('RELEASE', 1)

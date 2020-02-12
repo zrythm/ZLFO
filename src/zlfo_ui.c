@@ -990,7 +990,7 @@ sync_rate_control_draw_cb (
     case SYNC_4_1:
       strcpy (lbl, "4 / 1");
       break;
-#ifdef HAVE_64_BARS
+#ifdef HAVE_128_BARS
     case SYNC_8_1:
       strcpy (lbl, "8 / 1");
       break;
@@ -1002,6 +1002,9 @@ sync_rate_control_draw_cb (
       break;
     case SYNC_64_1:
       strcpy (lbl, "64 / 1");
+      break;
+    case SYNC_128_1:
+      strcpy (lbl, "128 / 1");
       break;
 #endif
       break;
