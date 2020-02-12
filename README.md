@@ -18,7 +18,7 @@ Thanks to Mire for the design.
 Dependencies
 ------------
 
-Cairo, glib, X11 and librsvg.
+Cairo, ztoolkit, glib, X11 and librsvg.
 
 Building
 --------
