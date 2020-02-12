@@ -369,4 +369,57 @@ recalc_vars (
     }
 }
 
+static inline long
+invert_and_shift_xval (
+  long    base,
+  long    max_val,
+  int     hinvert,
+  float   shift)
+{
+  long ret = base;
+
+  /* invert horizontally */
+  if (hinvert)
+    {
+      ret = max_val - ret;
+      while (ret >= max_val)
+        ret -= max_val;
+    }
+
+  /* shift */
+  if (shift >= 0.5f)
+    {
+      /* add the samples to shift from 0 to
+       * (half the period width) */
+      ret +=
+        (long)
+        /* shift ratio */
+        (((shift - 0.5f) * 2.f) *
+        /* half a period */
+        (max_val / 2.f));
+
+      /* readjust */
+      ret = ret % max_val;
+    }
+  else
+    {
+      /* subtract the samples to shift between
+       * 0 and (half the period width) */
+      ret -=
+        (long)
+        /* shift ratio */
+        (((0.5f - shift) * 2.f) *
+        /* half a period */
+        (max_val / 2.f));
+
+      /* readjust */
+      while (ret < 0)
+        {
+          ret += max_val;
+        }
+    }
+
+  return ret;
+}
+
 #endif

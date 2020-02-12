@@ -536,52 +536,11 @@ run (
 
       /* invert horizontally */
       long shifted_current_sample =
-        self->common.current_sample;
-      if (*self->hinvert >= 0.01f)
-        {
-          shifted_current_sample =
-            self->common.period_size -
-            self->common.current_sample;
-          if (shifted_current_sample ==
-                self->common.period_size)
-            shifted_current_sample = 0;
-        }
-
-      /* shift */
-      if (*self->shift >= 0.5f)
-        {
-          /* add the samples to shift from 0 to
-           * (half the period width) */
-          shifted_current_sample +=
-            (long)
-            /* shift ratio */
-            (((*self->shift - 0.5f) * 2.f) *
-            /* half a period */
-            (self->common.period_size / 2.f));
-
-          /* readjust */
-          shifted_current_sample =
-            shifted_current_sample %
-              self->common.period_size;
-        }
-      else
-        {
-          /* subtract the samples to shift between
-           * 0 and (half the period width) */
-          shifted_current_sample -=
-            (long)
-            /* shift ratio */
-            (((0.5f - *self->shift) * 2.f) *
-            /* half a period */
-            (self->common.period_size / 2.f));
-
-          /* readjust */
-          while (shifted_current_sample < 0)
-            {
-              shifted_current_sample +=
-                self->common.period_size;
-            }
-        }
+        invert_and_shift_xval (
+          self->common.current_sample,
+          self->common.period_size,
+          *self->hinvert >= 0.01f,
+          *self->shift);
 
       if (IS_STEP_MODE (self))
         {

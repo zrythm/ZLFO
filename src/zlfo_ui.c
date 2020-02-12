@@ -1365,45 +1365,14 @@ draw_graph (
   while (idouble < GRID_WIDTH - 0.01)
     {
       /* from 0 to GRID_WIDTH */
-      double xval = (double) i;
+      long xvall = (long) i;
+      double xvald = (double) i;
 
-      /* invert horizontally */
-      if (self->hinvert)
-        {
-          xval = (double) (GRID_WIDTH - i);
-        }
-
-      /* shift */
-      if (self->shift >= 0.5f)
-        {
-          xval +=
-            /* shift ratio */
-            (((double) self->shift - 0.50) *
-               2.0) *
-             /* half the period */
-            (GRID_WIDTH / 2.0);
-
-          /* adjust */
-          while (xval >= GRID_WIDTH)
-            {
-              xval -= GRID_WIDTH;
-            }
-        }
-      else
-        {
-          xval -=
-            /* shift ratio */
-            ((0.50 - (double) self->shift) *
-               2.0) *
-            /* half a period */
-            (GRID_WIDTH / 2.0);
-
-          /* adjust */
-          while (xval < 0.0)
-            {
-              xval += GRID_WIDTH;
-            }
-        }
+      xvall =
+        invert_and_shift_xval (
+          i, GRID_WIDTH, self->hinvert,
+          self->shift);
+      xvald = (double) xvall;
 
 #define DRAW_VAL(val) \
   /* invert vertically */ \
@@ -1455,10 +1424,12 @@ draw_graph (
   prev_draw_##val = draw_val
 
       /* calculate sine */
-      double sine = (double) self->sine_cache[(int) xval];
+      double sine =
+        (double) self->sine_cache[xvall];
 
       /* calculate saw */
-      double saw = (double) self->saw_cache[(int) xval];
+      double saw =
+        (double) self->saw_cache[xvall];
 
       /* triangle can be calculated based on the
        * saw */
@@ -1473,14 +1444,13 @@ draw_graph (
       /* square too */
       double square = saw < 0.0 ? -1.0 : 1.0;
 
-      /* get prev and next nodes to calculate
-       * custom */
+      double ratio = xvald / GRID_WIDTH;
       int prev_idx =
         get_prev_idx (
-          self, node_indices, xval / GRID_WIDTH);
+          self, node_indices, ratio);
       int next_idx =
         get_next_idx (
-          self, node_indices, xval / GRID_WIDTH);
+          self, node_indices, ratio);
 
       /* calculate custom */
       double custom =
@@ -1497,7 +1467,7 @@ draw_graph (
           next_idx < 0 ?
             self->nodes[0][2] :
             self->nodes[next_idx][2],
-          (float) xval, GRID_WIDTH);
+          (float) xvald, GRID_WIDTH);
 
       /* adjust for -1 to 1 */
       custom = custom * 2 - 1;
