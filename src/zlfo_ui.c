@@ -990,7 +990,6 @@ sync_rate_control_draw_cb (
     case SYNC_4_1:
       strcpy (lbl, "4 / 1");
       break;
-#ifdef HAVE_128_BARS
     case SYNC_8_1:
       strcpy (lbl, "8 / 1");
       break;
@@ -1006,7 +1005,6 @@ sync_rate_control_draw_cb (
     case SYNC_128_1:
       strcpy (lbl, "128 / 1");
       break;
-#endif
       break;
     }
   switch ((int) self->sync_rate_type)

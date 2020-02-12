@@ -192,13 +192,11 @@ typedef enum SyncRate
   SYNC_1_1,
   SYNC_2_1,
   SYNC_4_1,
-#ifdef HAVE_128_BARS
   SYNC_8_1,
   SYNC_16_1,
   SYNC_32_1,
   SYNC_64_1,
   SYNC_128_1,
-#endif
   NUM_SYNC_RATES,
 } SyncRate;
 

@@ -82,9 +82,6 @@ config_h_data.set_quoted (
   zlfo_cdata.get ('LFO_UI_URI'))
 config_h_data.set_quoted (
   'INSTALL_PATH', zlfodir)
-if get_option('128_bars_sync')
-  config_h_data.set ('HAVE_128_BARS', 1)
-endif
 if get_option('buildtype') == 'release'
   config_h_data.set ('RELEASE', 1)
 endif
