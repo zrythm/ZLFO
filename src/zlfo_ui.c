@@ -47,12 +47,13 @@
 #include <cairo.h>
 
 /* use old style for now until distros catch up */
-#if 0
+#ifdef _WOE32
 #include <lv2/atom/util.h>
 #include <lv2/ui/ui.h>
-#endif
+#else
 #include "lv2/lv2plug.in/ns/ext/atom/util.h"
 #include "lv2/lv2plug.in/ns/extensions/ui/ui.h"
+#endif
 
 #include <ztoolkit/ztk.h>
 
