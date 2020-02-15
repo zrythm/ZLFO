@@ -30,22 +30,12 @@
 
 #include <string.h>
 
-/* use old style for now until distros catch up */
-#ifdef _WOE32
 #include "lv2/atom/atom.h"
 #include "lv2/atom/forge.h"
 #include "lv2/core/lv2.h"
 #include "lv2/log/log.h"
 #include "lv2/urid/urid.h"
 #include "lv2/time/time.h"
-#else
-#include "lv2/lv2plug.in/ns/ext/atom/atom.h"
-#include "lv2/lv2plug.in/ns/ext/atom/forge.h"
-#include "lv2/lv2plug.in/ns/ext/log/log.h"
-#include "lv2/lv2plug.in/ns/ext/urid/urid.h"
-#include "lv2/lv2plug.in/ns/ext/time/time.h"
-#include "lv2/lv2plug.in/ns/lv2core/lv2.h"
-#endif
 
 /** Min, max and default frequency. */
 #define MIN_FREQ 0.1f

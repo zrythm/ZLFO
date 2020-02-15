@@ -63,6 +63,7 @@ lv2_ttl_gen = executable (
     'zlfo_ttl_gen.c',
     ],
   include_directories: inc_dirs,
+  dependencies: lv2_dep,
   c_args: common_cflags,
   install: false,
   )

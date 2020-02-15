@@ -97,9 +97,17 @@ zlfo_config_h_dep = declare_dependency (
   sources: zlfo_config_h,
   )
 
+lv2_dep = dependency (
+  'lv2', version: '>=1.16.0', required: false)
+if not lv2_dep.found()
+  lilv_proj = subproject('lilv')
+  lv2_dep = lilv_proj.get_variable('lv2_dep')
+endif
+
 zlfo_deps = [
   zlfo_config_h_dep,
   cc.find_library ('m'),
+  lv2_dep,
   ]
 ztoolkit_dep = dependency(
   'ztoolkit', version: '>= 0.1',

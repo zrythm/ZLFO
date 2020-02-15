@@ -84,8 +84,9 @@ tags
 # Valgrind
 vgcore.*
 
-# subprojects
-subprojects/**/*
-
 # callgrind
 callgrind.*
+
+# subprojects
+subprojects/**/*
+!subprojects/*.wrap
