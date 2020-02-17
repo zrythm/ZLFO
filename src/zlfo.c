@@ -670,6 +670,7 @@ run (
           self->saw_out[i] = 0.f;
           self->triangle_out[i] = 0.f;
           self->square_out[i] = 0.f;
+          self->custom_out[i] = 0.f;
         }
 
       /* adjust range */
