@@ -134,6 +134,7 @@ int main (
     lv2:default %f ;\n\
     lv2:minimum %f ;\n\
     lv2:maximum %f ;\n\
+    lv2:portProperty pprop:trigger, pprop:discreteCV ;\n\
   ] , [\n",
   0, 0, 30720000, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0);
 

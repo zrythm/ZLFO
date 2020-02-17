@@ -1047,7 +1047,10 @@ freq_control_draw_cb (
 
   /* draw label */
   char lbl[12];
-  sprintf (lbl, "%.1f Hz", (double) self->freq);
+  if (self->freq < 1.f)
+    sprintf (lbl, "%.2f Hz", (double) self->freq);
+  else
+    sprintf (lbl, "%.1f Hz", (double) self->freq);
 
   /* Draw label */
   cairo_text_extents_t extents;
@@ -1210,7 +1213,7 @@ add_bot_buttons (
       ZTK_CTRL_DRAG_VERTICAL,
       self, MIN_FREQ, MAX_FREQ, MIN_FREQ);
   ((ZtkWidget *) control)->user_data = self;
-  control->sensitivity = 0.005f;
+  control->sensitivity = 0.00096f;
   ((ZtkWidget *) control)->button_event_cb =
     (ZtkWidgetButtonEventCallback)
     freq_control_btn_event_cb;

@@ -76,6 +76,21 @@ sync_rate_to_float (
     case SYNC_4_1:
       r = 4.f;
       break;
+    case SYNC_8_1:
+      r = 8.f;
+      break;
+    case SYNC_16_1:
+      r = 16.f;
+      break;
+    case SYNC_32_1:
+      r = 32.f;
+      break;
+    case SYNC_64_1:
+      r = 64.f;
+      break;
+    case SYNC_128_1:
+      r = 128.f;
+      break;
     default:
       break;
     }

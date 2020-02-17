@@ -38,9 +38,9 @@
 #include "lv2/time/time.h"
 
 /** Min, max and default frequency. */
-#define MIN_FREQ 0.1f
+#define MIN_FREQ 0.01f
 #define DEF_FREQ 1.f
-#define MAX_FREQ 20.f
+#define MAX_FREQ 60.f
 
 typedef struct ZLfoUris
 {
