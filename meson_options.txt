@@ -20,3 +20,9 @@ option (
   type: 'boolean',
   value: false,
   description: 'Enable strict compilation flags')
+
+option (
+  'lv2dir',
+  type: 'string',
+  value: 'lib/lv2',
+  description: 'LV2 installation dir under the prefix')

@@ -46,9 +46,7 @@ elif host_machine.system() == 'windows'
 endif
 
 prefix = get_option('prefix')
-bindir = join_paths(prefix, get_option('bindir'))
-libdir = join_paths(prefix, get_option ('libdir'))
-lv2dir = join_paths(libdir, 'lv2')
+lv2dir = join_paths(prefix, get_option('lv2dir'))
 zlfodir = join_paths(lv2dir, 'ZLFO.lv2')
 
 zlfo_cdata = configuration_data ()
