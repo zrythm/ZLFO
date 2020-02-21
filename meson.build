@@ -108,7 +108,7 @@ zlfo_deps = [
   lv2_dep,
   ]
 ztoolkit_dep = dependency(
-  'ztoolkit', version: '>= 0.1',
+  'ztoolkit', version: '== 0.1.0',
   fallback: ['ztoolkit', 'ztoolkit_dep'],
   default_options: ['enable_rsvg=true'])
 
