@@ -226,6 +226,10 @@ typedef struct ZLfoUi
   float            sine_cache[GRID_WIDTH];
   float            saw_cache[GRID_WIDTH];
 
+  char             bundle_path[2000];
+
+  ZLfoUiTheme      ui_theme;
+
   cairo_t *        cached_cr;
   cairo_surface_t * cached_surface;
 
@@ -365,7 +369,8 @@ bg_draw_cb (
   cairo_fill (cr);
 
   /* set theme background */
-  zlfo_ui_theme_set_cr_color (cr, bg);
+  zlfo_ui_theme_set_cr_color (
+    &self->ui_theme, cr, bg);
   cairo_rectangle (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
@@ -709,18 +714,18 @@ add_left_buttons (
         get_button_active);
       ztk_button_set_background_colors (
         btn,
-        &zlfo_ui_theme.button_normal,
-        &zlfo_ui_theme.button_hover,
-        &zlfo_ui_theme.left_button_click);
+        &self->ui_theme.button_normal,
+        &self->ui_theme.button_hover,
+        &self->ui_theme.left_button_click);
 
 #define MAKE_BUTTON_SVGED(caps,lowercase) \
   case LEFT_BTN_##caps: \
     { \
       ztk_button_make_svged (\
         btn, hpadding, vpadding, \
-        zlfo_ui_theme.lowercase##_svg, \
-        zlfo_ui_theme.lowercase##_svg, \
-        zlfo_ui_theme.lowercase##_svg); \
+        self->ui_theme.lowercase##_svg, \
+        self->ui_theme.lowercase##_svg, \
+        self->ui_theme.lowercase##_svg); \
     } \
     break
 
@@ -749,6 +754,8 @@ top_and_bot_btn_bg_cb (
   ZtkRect *   draw_rect,
   DrawData *  data)
 {
+  ZLfoUi * self = data->zlfo_ui;
+
   /* set background */
   ZtkWidgetState state = w->state;
   int is_normal = 0;
@@ -757,18 +764,20 @@ top_and_bot_btn_bg_cb (
   if (state & ZTK_WIDGET_STATE_PRESSED ||
       get_button_active ((ZtkButton *) w, data))
     {
-      zlfo_ui_theme_set_cr_color (cr, selected_bg);
+      zlfo_ui_theme_set_cr_color (
+        &self->ui_theme, cr, selected_bg);
       is_pressed = 1;
     }
   else if (state & ZTK_WIDGET_STATE_HOVERED)
     {
-      zlfo_ui_theme_set_cr_color (cr, button_hover);
+      zlfo_ui_theme_set_cr_color (
+        &self->ui_theme, cr, button_hover);
       is_hovered = 1;
     }
   else
     {
       zlfo_ui_theme_set_cr_color (
-        cr, button_normal);
+        &self->ui_theme, cr, button_normal);
       is_normal = 1;
     }
 
@@ -789,12 +798,12 @@ top_and_bot_btn_bg_cb (
       if (is_pressed)
         {
           zlfo_ui_theme_set_cr_color (
-            cr, button_lining_active);
+            &self->ui_theme, cr, button_lining_active);
         }
       else if (is_hovered)
         {
           zlfo_ui_theme_set_cr_color (
-            cr, button_lining_hover);
+            &self->ui_theme, cr, button_lining_hover);
         }
       cairo_rectangle (
         cr, w->rect.x,
@@ -826,12 +835,12 @@ top_and_bot_btn_bg_cb (
       if (is_pressed)
         {
           zlfo_ui_theme_set_cr_color (
-            cr, button_lining_active);
+            &self->ui_theme, cr, button_lining_active);
         }
       else if (is_hovered)
         {
           zlfo_ui_theme_set_cr_color (
-            cr, button_lining_hover);
+            &self->ui_theme, cr, button_lining_hover);
         }
       cairo_rectangle (
         cr, w->rect.x,
@@ -864,7 +873,7 @@ top_and_bot_btn_bg_cb (
         rect.x -= FREQ_BOX_WIDTH / 2.0; \
       } \
     ztk_rsvg_draw ( \
-      zlfo_ui_theme.svg##_svg, cr, &rect); \
+      self->ui_theme.svg##_svg, cr, &rect); \
   } \
       break
 
@@ -915,9 +924,9 @@ add_top_buttons (
     { \
       ztk_button_make_svged (\
         btn, hpadding, vpadding, \
-        zlfo_ui_theme.lowercase##_svg, \
-        zlfo_ui_theme.lowercase##_svg, \
-        zlfo_ui_theme.lowercase##_svg); \
+        self->ui_theme.lowercase##_svg, \
+        self->ui_theme.lowercase##_svg, \
+        self->ui_theme.lowercase##_svg); \
     } \
     break
 
@@ -1186,13 +1195,13 @@ add_bot_buttons (
   ztk_button_set_background_colors (
     btn,
     &bg,
-    &zlfo_ui_theme.button_hover,
-    &zlfo_ui_theme.bright_click);
+    &self->ui_theme.button_hover,
+    &self->ui_theme.bright_click);
   ztk_button_make_svged (
     btn, 3, 0,
-    zlfo_ui_theme.down_arrow_svg,
-    zlfo_ui_theme.down_arrow_svg,
-    zlfo_ui_theme.down_arrow_svg);
+    self->ui_theme.down_arrow_svg,
+    self->ui_theme.down_arrow_svg,
+    self->ui_theme.down_arrow_svg);
   ztk_app_add_widget (
     self->app, (ZtkWidget *) btn, 4);
 
@@ -1263,9 +1272,9 @@ draw_graph (
     }
 
   cairo_set_source_rgba (
-    cr, zlfo_ui_theme.left_button_click.red,
-    zlfo_ui_theme.left_button_click.green,
-    zlfo_ui_theme.left_button_click.blue,
+    cr, self->ui_theme.left_button_click.red,
+    self->ui_theme.left_button_click.green,
+    self->ui_theme.left_button_click.blue,
     GRAPH_OVERLAY_ALPHA);
   cairo_set_line_cap (cr, CAIRO_LINE_CAP_BUTT);
   if (self->step_mode)
@@ -1445,7 +1454,7 @@ draw_graph (
   if (self->custom_on)
     {
       /* draw node curves */
-      zlfo_ui_theme_set_cr_color (cr, line);
+      zlfo_ui_theme_set_cr_color (&self->ui_theme, cr, line);
       cairo_set_line_width (cr, 6);
       for (i = 0; i < self->num_nodes - 1; i++)
         {
@@ -1494,7 +1503,7 @@ draw_graph (
       cairo_stroke (cr);
 
       /* draw faded end node */
-      zlfo_ui_theme_set_cr_color (cr, selected_bg);
+      zlfo_ui_theme_set_cr_color (&self->ui_theme, cr, selected_bg);
       cairo_arc (
         cr,
         rect.x + rect.width / 2,
@@ -1502,7 +1511,7 @@ draw_graph (
         rect.width / 2,
         0, 2 * G_PI);
       cairo_fill (cr);
-      zlfo_ui_theme_set_cr_color (cr, line);
+      zlfo_ui_theme_set_cr_color (&self->ui_theme, cr, line);
       cairo_set_line_width (cr, 4);
       cairo_arc (
         cr,
@@ -1553,7 +1562,7 @@ mid_region_bg_draw_cb (
 
       /* set background */
       zlfo_ui_theme_set_cr_color (
-        self->cached_cr, selected_bg);
+        &self->ui_theme, self->cached_cr, selected_bg);
       cairo_rectangle (
         self->cached_cr, widget->rect.x, widget->rect.y,
         widget->rect.width, widget->rect.height);
@@ -1608,12 +1617,12 @@ mid_region_bg_draw_cb (
           if ((i % 4) == 0)
             {
               zlfo_ui_theme_set_cr_color (
-                self->cached_cr, grid_strong);
+                &self->ui_theme, self->cached_cr, grid_strong);
             }
           else
             {
               zlfo_ui_theme_set_cr_color (
-                self->cached_cr, grid);
+                &self->ui_theme, self->cached_cr, grid);
             }
           cairo_move_to (
             self->cached_cr,
@@ -1628,7 +1637,7 @@ mid_region_bg_draw_cb (
           cairo_stroke (self->cached_cr);
         }
       zlfo_ui_theme_set_cr_color (
-        self->cached_cr, grid_strong);
+        &self->ui_theme, self->cached_cr, grid_strong);
       cairo_move_to (
         self->cached_cr,
         GRID_XSTART_GLOBAL,
@@ -1890,7 +1899,7 @@ node_draw_cb (
 
   double width = NODE_WIDTH;
 
-  zlfo_ui_theme_set_cr_color (cr, grid_strong);
+  zlfo_ui_theme_set_cr_color (&self->ui_theme, cr, grid_strong);
   cairo_arc (
     cr,
     w->rect.x + width / 2,
@@ -1899,7 +1908,7 @@ node_draw_cb (
     0, 2 * G_PI);
   cairo_fill (cr);
 
-  zlfo_ui_theme_set_cr_color (cr, line);
+  zlfo_ui_theme_set_cr_color (&self->ui_theme, cr, line);
   cairo_set_line_width (cr, 4);
   cairo_arc (
     cr,
@@ -1954,7 +1963,7 @@ range_draw_cb (
     widget->rect.width,
     widget->rect.height };
   ztk_rsvg_draw (
-    zlfo_ui_theme.range_svg, cr, &rect);
+    self->ui_theme.range_svg, cr, &rect);
 
   /* draw range */
   double width = RANGE_POINT_WIDTH;
@@ -1962,7 +1971,7 @@ range_draw_cb (
   double start_y = 83 - width / 2;
   double range_height = RANGE_HEIGHT;
   zlfo_ui_theme_set_cr_color (
-    cr, button_click);
+    &self->ui_theme, cr, button_click);
 
   /* range */
   double range_min_y_normalized =
@@ -2053,12 +2062,14 @@ range_point_draw_cb (
   ZtkRect *   draw_rect,
   RangePointData * data)
 {
+  ZLfoUi * self = data->zlfo_ui;
+
   double width = RANGE_POINT_WIDTH;
   double start_x = widget->rect.x;
   double start_y = widget->rect.y;
 
   zlfo_ui_theme_set_cr_color (
-    cr, button_click);
+    &self->ui_theme, cr, button_click);
   cairo_arc (
     cr, start_x + width / 2, start_y + width / 2,
     width / 2,
@@ -2198,9 +2209,9 @@ add_zrythm_icon (
       on_zrythm_btn_clicked, self);
   ztk_button_make_svged (
     btn, 0, 0,
-    zlfo_ui_theme.zrythm_svg,
-    zlfo_ui_theme.zrythm_hover_svg,
-    zlfo_ui_theme.zrythm_orange_svg);
+    self->ui_theme.zrythm_svg,
+    self->ui_theme.zrythm_hover_svg,
+    self->ui_theme.zrythm_orange_svg);
   ztk_app_add_widget (
     self->app, (ZtkWidget *) btn, 0);
 }
@@ -2241,7 +2252,8 @@ shift_control_draw_cb (
   ZtkControl * ctrl = (ZtkControl *) widget;
 
   /* draw bg */
-  zlfo_ui_theme_set_cr_color (cr, button_normal);
+  zlfo_ui_theme_set_cr_color (
+    &self->ui_theme, cr, button_normal);
   cairo_rectangle (
     cr, widget->rect.x, widget->rect.y,
     widget->rect.width, widget->rect.height);
@@ -2249,7 +2261,7 @@ shift_control_draw_cb (
 
   /* draw black bg */
   const int bg_padding = 2;
-  zlfo_ui_theme_set_cr_color (cr, bg);
+  zlfo_ui_theme_set_cr_color (&self->ui_theme, cr, bg);
   cairo_rectangle (
     cr, widget->rect.x + bg_padding,
     widget->rect.y + bg_padding,
@@ -2319,6 +2331,8 @@ grid_lbl_draw_cb (
   ZtkRect *   draw_rect,
   DrawData *  data)
 {
+  ZLfoUi * self = data->zlfo_ui;
+
   /* draw svgs */
 #define DRAW_SVG(caps,lowercase) \
   case LBL_TYPE_##caps: \
@@ -2329,7 +2343,7 @@ grid_lbl_draw_cb (
         widget->rect.width, \
         widget->rect.height }; \
       ztk_rsvg_draw ( \
-        zlfo_ui_theme.lowercase##_svg, \
+        self->ui_theme.lowercase##_svg, \
         cr, &rect); \
     } \
     break
@@ -2392,31 +2406,31 @@ add_grid_controls (
           on_btn_clicked, data);
       ztk_button_set_background_colors (
         btn,
-        &zlfo_ui_theme.bg,
-        &zlfo_ui_theme.button_hover,
-        &zlfo_ui_theme.left_button_click);
+        &self->ui_theme.bg,
+        &self->ui_theme.button_hover,
+        &self->ui_theme.left_button_click);
       switch (i)
         {
         case GRID_BTN_HMIRROR:
           ztk_button_make_svged (
             btn, 0, 0,
-            zlfo_ui_theme.hmirror_svg,
-            zlfo_ui_theme.hmirror_hover_svg,
-            zlfo_ui_theme.hmirror_click_svg);
+            self->ui_theme.hmirror_svg,
+            self->ui_theme.hmirror_hover_svg,
+            self->ui_theme.hmirror_click_svg);
           break;
         case GRID_BTN_VMIRROR:
           ztk_button_make_svged (
             btn, 0, 0,
-            zlfo_ui_theme.vmirror_svg,
-            zlfo_ui_theme.vmirror_hover_svg,
-            zlfo_ui_theme.vmirror_click_svg);
+            self->ui_theme.vmirror_svg,
+            self->ui_theme.vmirror_hover_svg,
+            self->ui_theme.vmirror_click_svg);
           break;
         case GRID_BTN_SNAP:
           ztk_button_make_svged (
             btn, 0, 0,
-            zlfo_ui_theme.grid_snap_svg,
-            zlfo_ui_theme.grid_snap_hover_svg,
-            zlfo_ui_theme.grid_snap_click_svg);
+            self->ui_theme.grid_snap_svg,
+            self->ui_theme.grid_snap_hover_svg,
+            self->ui_theme.grid_snap_click_svg);
           break;
         }
       ztk_button_make_toggled (
@@ -2440,6 +2454,8 @@ add_grid_controls (
       ZTK_CTRL_DRAG_HORIZONTAL,
       self, 0.f, 1.f, 0.5f);
   control->sensitivity = 0.02f;
+  ZtkWidget * control_widget = (ZtkWidget *) control;
+  control_widget->user_data = self;
   ztk_control_set_relative_mode (control, 0);
   ztk_app_add_widget (
     self->app, (ZtkWidget *) control, 4);
@@ -2491,7 +2507,8 @@ create_ui (
     WIDTH, HEIGHT);
 
   /* init the theme */
-  zlfo_ui_theme_init ();
+  zlfo_ui_theme_init (
+    &self->ui_theme, self->bundle_path);
 
   /** add each control */
   add_bg_widget (self);
@@ -2520,6 +2537,7 @@ instantiate (
   self->controller = controller;
   self->dragging_node = -1;
   self->has_change = 1;
+  strcpy (self->bundle_path, bundle_path);
 
 #ifndef RELEASE
   ztk_log_set_level (ZTK_LOG_LEVEL_DEBUG);

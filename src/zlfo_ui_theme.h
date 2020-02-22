@@ -102,15 +102,15 @@ typedef struct ZLfoUiTheme
 
 } ZLfoUiTheme;
 
-static ZLfoUiTheme zlfo_ui_theme;
-
 static inline void
-zlfo_ui_theme_init (void)
+zlfo_ui_theme_init (
+  ZLfoUiTheme * theme,
+  const char *  bundle_path)
 {
 #define SET_COLOR(cname,_hex) \
   ztk_color_parse_hex ( \
-    &zlfo_ui_theme.cname, _hex); \
-  zlfo_ui_theme.cname.alpha = 1.0
+    &theme->cname, _hex); \
+  theme->cname.alpha = 1.0
 
   SET_COLOR (bg, "#323232");
   SET_COLOR (button_normal, "#4A4A4A");
@@ -130,11 +130,11 @@ zlfo_ui_theme_init (void)
 #define LOAD_SVG(name) \
   abs_path = \
     g_build_filename ( \
-      "resources", #name ".svg", \
+      bundle_path, "resources", #name ".svg", \
       NULL); \
-  zlfo_ui_theme.name##_svg = \
+  theme->name##_svg = \
     ztk_rsvg_load_svg (abs_path); \
-  if (!zlfo_ui_theme.name##_svg) \
+  if (!theme->name##_svg) \
     { \
       ztk_error ( \
         "Failed loading SVG: %s", abs_path); \
@@ -175,15 +175,15 @@ zlfo_ui_theme_init (void)
 /**
  * Sets the cairo color to that in the theme.
  */
-#define zlfo_ui_theme_set_cr_color(cr,color_name) \
+#define zlfo_ui_theme_set_cr_color(theme,cr,color_name) \
   ztk_color_set_for_cairo ( \
-    &zlfo_ui_theme.color_name, cr)
+    &(theme)->color_name, cr)
 
 #define zlfo_ui_theme_set_cr_color_with_alpha( \
-  cr,color_name,alpha) \
+  theme,cr,color_name,alpha) \
   cairo_set_source_rgba ( \
-    cr, zlfo_ui_theme.color_name.red, \
-    zlfo_ui_theme.color_name.green, \
-    zlfo_ui_theme.color_name.blue, alpha)
+    cr, (theme)->color_name.red, \
+    (theme)->color_name.green, \
+    (theme)->color_name.blue, alpha)
 
 #endif
