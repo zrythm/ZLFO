@@ -17,7 +17,7 @@
 
 project (
   'ZLFO', ['c'],
-  version: '0.1.0',
+  version: '0.1.1',
   license: 'AGPLv3+',
   meson_version: '>= 0.43.0',
   default_options: [

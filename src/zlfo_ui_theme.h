@@ -130,7 +130,7 @@ zlfo_ui_theme_init (void)
 #define LOAD_SVG(name) \
   abs_path = \
     g_build_filename ( \
-      INSTALL_PATH, "resources", #name ".svg", \
+      "resources", #name ".svg", \
       NULL); \
   zlfo_ui_theme.name##_svg = \
     ztk_rsvg_load_svg (abs_path); \
