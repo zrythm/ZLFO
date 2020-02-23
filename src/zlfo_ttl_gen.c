@@ -70,6 +70,12 @@ int main (
 @prefix ui:   <http://lv2plug.in/ns/extensions/ui#> .\n\n");
 
   fprintf (f,
+"<" PROJECT_URI ">\n\
+  a doap:Project ;\n\
+  doap:name \"Zrythm plugins\" .\n\
+\n");
+
+  fprintf (f,
 "<" LFO_URI ">\n\
   a lv2:Plugin,\n\
     lv2:OscillatorPlugin ;\n\
@@ -429,7 +435,7 @@ int main (
   lv2:extensionData ui:idleInterface ,\n\
                     ui:showInterface ;\n\
   ui:portNotification [\n\
-    ui:plugin \"" LFO_URI "\" ;\n\
+    ui:plugin <" LFO_URI "> ;\n\
     lv2:symbol \"notify\" ;\n\
     ui:notifyType atom:Blank ;\n\
   ] .");
