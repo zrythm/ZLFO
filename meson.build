@@ -17,7 +17,7 @@
 
 project (
   'ZLFO', ['c'],
-  version: '0.1.1',
+  version: '0.1.3',
   license: 'AGPLv3+',
   meson_version: '>= 0.43.0',
   default_options: [
@@ -108,7 +108,7 @@ zlfo_deps = [
   lv2_dep,
   ]
 ztoolkit_dep = dependency(
-  'ztoolkit', version: '== 0.1.0',
+  'ztoolkit', version: '== 0.1.1',
   fallback: ['ztoolkit', 'ztoolkit_dep'],
   default_options: ['enable_rsvg=true'])
 
